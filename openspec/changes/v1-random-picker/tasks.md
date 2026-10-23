@@ -59,3 +59,16 @@
 - [x] 8.7 推送到 GitHub，设置 topics（chrome-extension / douban / random-picker），验收：远程仓库可访问且 topics 生效
 - [ ] 8.8 提交阮一峰周刊投稿 issue（正文已备好在 `docs/promotion.md`）；**阻塞**：需要真机验收后的截图，且未上架时读者无法安装，建议上架后再投
 - [ ] 8.9 向 awesome chrome extensions 列表提交 PR；**阻塞**：唯一可用的 `themeselection/best-chrome-extensions` 强制要求 Chrome Web Store 链接，其余列表均已停止维护或为源码型仓库
+
+## 9. 界面修订（真机反馈后）
+
+- [x] 9.1 更名为「豆瓣随机」，同步更新 manifest、页面标题、文档
+- [x] 9.2 移除右上角「全部同步」按钮，只保留「同步」（全选三个类别即等价）
+- [x] 9.3 同步冷却改为非阻塞提示：卡片与历史保留，提示改为 toast，同步按钮变倒计时并禁用
+- [x] 9.4 修复封面防盗链：用 declarativeNetRequest 为 doubanio 请求补豆瓣 Referer，并新增对应 host 权限
+- [x] 9.5 抽中后单独请求详情接口补简介，就地更新不重放动画
+- [x] 9.6 卡片标注来源（来自「想看」/「想读」），为 v2 的多样来源预留 `status` 字段
+- [x] 9.7 单一主按钮：未抽过显示「抽一个」，抽过后显示「再抽一个」，移除卡片内的重复按钮
+- [x] 9.8 卡片入场动画（渐变 + 位移），并尊重 prefers-reduced-motion
+- [x] 9.9 历史条目显示类别与分钟级时间（今天 HH:mm / MM-DD HH:mm）
+- [x] 9.10 标题旁新增帮助入口，说明用法、数据来源、更新频率与抽选规则

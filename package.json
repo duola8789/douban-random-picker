@@ -1,6 +1,6 @@
 {
   "name": "douban-random-picker",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Chrome MV3 扩展：从个人豆瓣收藏中随机抽一个",

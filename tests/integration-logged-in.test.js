@@ -46,8 +46,23 @@ test('抽取返回合法条目并写入历史', async () => {
   assert.ok(['movie', 'tv', 'book'].includes(res.item.category))
   assert.ok(res.item.title)
   assert.ok(res.item.url.startsWith('https://'))
+  assert.equal(res.item.status, 'mark', '应带上标记状态，界面据此显示「来自想看」')
   assert.equal(res.history.length, 1, '历史应有一条记录')
   assert.equal(res.history[0].key, res.item.key)
+})
+
+test('抽中后能补到简介', async () => {
+  const picked = await env.uiSend({ type: 'ui:pick' })
+  assert.equal(picked.ok, true)
+
+  const res = await env.uiSend({
+    type: 'ui:detail',
+    subjectId: picked.item.subjectId,
+    category: picked.item.category,
+  })
+  assert.equal(res.ok, true)
+  assert.equal(res.detail.ok, true)
+  assert.ok(res.detail.intro.includes(picked.item.subjectId), '简介应来自详情接口')
 })
 
 test('连抽 10 次不会重复', async () => {

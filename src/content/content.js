@@ -16,6 +16,7 @@
     PING: 'cs:ping',
     PROBE_LOGIN: 'cs:probeLogin',
     FETCH_ALL: 'cs:fetchAll',
+    DETAIL: 'cs:detail',
   }
   const FROM_CS = {
     SYNC_RESULT: 'cs:syncResult',
@@ -32,7 +33,7 @@
     return { code, ...extra }
   }
 
-  const log = (...args) => console.log('%c[豆瓣随机一部]', 'color:#2f6b4f;font-weight:600', ...args)
+  const log = (...args) => console.log('%c[豆瓣随机]', 'color:#2f6b4f;font-weight:600', ...args)
 
   /**
    * 确认登录态并拿到 uid。
@@ -217,6 +218,38 @@
     }
   }
 
+  /**
+   * 拉单个条目的详情，只为拿简介。
+   *
+   * 收藏接口里 subject.intro 是 null，简介只在详情接口里。
+   * 每次抽中才会请求一次，不影响同步。
+   */
+  async function fetchDetail({ kind, subjectId }) {
+    const type = kind === 'book' ? 'book' : 'movie'
+    const url = `https://m.douban.com/rexxar/api/v2/${type}/${encodeURIComponent(subjectId)}`
+    try {
+      const res = await fetch(url, {
+        credentials: 'include',
+        redirect: 'follow',
+        headers: { Accept: 'application/json' },
+      })
+      if (!res.ok) {
+        log('详情接口失败', res.status, subjectId)
+        return { ok: false, status: res.status }
+      }
+      const json = await res.json()
+      return {
+        ok: true,
+        intro: typeof json?.intro === 'string' ? json.intro.trim() : '',
+        subtitle: typeof json?.card_subtitle === 'string' ? json.card_subtitle : '',
+        authorIntro: typeof json?.author_intro === 'string' ? json.author_intro : '',
+      }
+    } catch (err) {
+      log('详情接口异常', err?.message)
+      return { ok: false, error: String(err?.message ?? err) }
+    }
+  }
+
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (!msg || typeof msg.type !== 'string') return
 
@@ -235,6 +268,11 @@
       sendResponse({ ok: true, accepted: true })
       fetchAll(msg)
       return
+    }
+
+    if (msg.type === CS.DETAIL) {
+      fetchDetail(msg).then(sendResponse)
+      return true
     }
   })
 })()

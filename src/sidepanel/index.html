@@ -3,16 +3,18 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>豆瓣随机一部</title>
+    <title>豆瓣随机</title>
     <link rel="stylesheet" href="./sidepanel.css" />
   </head>
   <body>
     <header class="bar">
-      <h1>豆瓣随机一部</h1>
-      <div class="bar-actions">
-        <button id="sync-all" class="ghost" type="button" title="同步全部类别">全部</button>
-        <button id="sync" class="ghost" type="button" title="立即同步当前范围">同步</button>
+      <div class="brand">
+        <h1>豆瓣随机</h1>
+        <button id="help" class="icon-btn" type="button" title="怎么用、数据从哪来" aria-label="帮助">
+          ?
+        </button>
       </div>
+      <button id="sync" class="ghost" type="button" title="同步当前选择的范围">同步</button>
     </header>
 
     <section class="scopes" aria-label="候选范围">
@@ -30,7 +32,7 @@
     <section class="history">
       <div class="history-head">
         <h2>抽过的</h2>
-        <div>
+        <div class="history-tools">
           <button id="reset-account" class="link" type="button">更换账号</button>
           <button id="clear-history" class="link" type="button">清空</button>
         </div>
@@ -39,6 +41,37 @@
     </section>
 
     <div id="toast" class="toast" hidden></div>
+
+    <div id="help-panel" class="overlay" hidden>
+      <div class="help-card" role="dialog" aria-label="使用说明">
+        <header class="help-head">
+          <h2>怎么用</h2>
+          <button id="help-close" class="icon-btn" type="button" aria-label="关闭">×</button>
+        </header>
+        <p>先在浏览器里登录豆瓣，选好范围，点一下「抽一个」。</p>
+
+        <h3>数据从哪来</h3>
+        <p>
+          来自你自己在豆瓣标记的「想看 / 想读」。扩展在豆瓣页面里读取，用的是你已有的登录状态，
+          不碰账号密码，也不保存 cookie。
+        </p>
+
+        <h3>多久更新</h3>
+        <p>
+          打开时如果数据超过 24 小时会自动刷新。手动同步最快 10 分钟一次，
+          避免请求太密被豆瓣限流。
+        </p>
+
+        <h3>怎么抽</h3>
+        <p>每个类别被选中的概率相同；最近抽过的 20 条不会重复出现。</p>
+
+        <h3>隐私</h3>
+        <p>
+          数据只存在你的浏览器里，没有服务器，不上传任何内容。
+          非官方工具，与豆瓣无关。
+        </p>
+      </div>
+    </div>
 
     <script type="module" src="./sidepanel.js"></script>
   </body>

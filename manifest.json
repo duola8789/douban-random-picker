@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "豆瓣随机一部",
-  "version": "0.1.0",
+  "name": "豆瓣随机",
+  "version": "0.2.0",
   "description": "从你标记的「想看 / 想读」里随机抽一个。",
   "icons": {
     "16": "icons/icon16.png",
@@ -9,8 +9,17 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "permissions": ["storage", "sidePanel"],
-  "host_permissions": ["https://*.douban.com/*"],
+  "permissions": ["storage", "sidePanel", "declarativeNetRequest"],
+  "host_permissions": ["https://*.douban.com/*", "https://*.doubanio.com/*"],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "images",
+        "enabled": true,
+        "path": "src/rules/images.json"
+      }
+    ]
+  },
   "background": {
     "service_worker": "src/background/service-worker.js",
     "type": "module"
@@ -26,7 +35,7 @@
     "default_path": "src/sidepanel/index.html"
   },
   "action": {
-    "default_title": "豆瓣随机一部",
+    "default_title": "豆瓣随机",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png"

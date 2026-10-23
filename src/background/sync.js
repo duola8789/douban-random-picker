@@ -292,3 +292,31 @@ export async function checkLogin() {
     if (probed.temporary) chrome.tabs.remove(probed.tabId).catch(() => {})
   }
 }
+
+/**
+ * 抽中后补一条简介。
+ *
+ * 收藏接口不返回 intro，只在详情接口里有。复用已有豆瓣标签页，
+ * 没有就临时开一个并在结束后关掉——每次抽中最多一次请求。
+ */
+export async function fetchDetail({ subjectId, category }) {
+  let tab
+  try {
+    tab = await ensureDoubanTab()
+  } catch (err) {
+    return { ok: false, error: { code: err.code ?? ERROR.NO_DOUBAN_TAB } }
+  }
+
+  try {
+    const detail = await chrome.tabs.sendMessage(tab.tabId, {
+      type: CS.DETAIL,
+      kind: category === 'book' ? 'book' : 'movie',
+      subjectId,
+    })
+    return { ok: true, detail }
+  } catch {
+    return { ok: false, error: { code: ERROR.NETWORK } }
+  } finally {
+    if (tab.temporary) chrome.tabs.remove(tab.tabId).catch(() => {})
+  }
+}

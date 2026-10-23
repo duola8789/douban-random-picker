@@ -43,18 +43,36 @@ for (const rel of referenced) {
 notes.push(`manifest 引用 ${referenced.length} 个文件，均存在`)
 
 // 2. 权限
-const ALLOWED = new Set(['storage', 'sidePanel'])
+const ALLOWED = new Set(['storage', 'sidePanel', 'declarativeNetRequest'])
 for (const perm of manifest.permissions ?? []) {
   if (!ALLOWED.has(perm)) problems.push(`出现设计之外的权限：${perm}`)
 }
 const hosts = manifest.host_permissions ?? []
 for (const host of hosts) {
-  if (!host.endsWith('douban.com/*')) problems.push(`host_permissions 超出豆瓣域：${host}`)
+  if (!/^https:\/\/\*\.(douban|doubanio)\.com\/\*$/.test(host)) {
+    problems.push(`host_permissions 超出允许范围：${host}`)
+  }
 }
-if (referenced.length && manifest.action?.default_popup) {
+if (manifest.action?.default_popup) {
   problems.push('存在 default_popup —— 设计上点击图标应直接打开侧边栏')
 }
 notes.push(`权限：${(manifest.permissions ?? []).join(', ') || '无'}；host：${hosts.join(', ') || '无'}`)
+
+// 2b. declarativeNetRequest 规则
+for (const resource of manifest.declarative_net_request?.rule_resources ?? []) {
+  const rulesPath = path.join(root, resource.path)
+  if (!fs.existsSync(rulesPath)) {
+    problems.push(`DNR 规则文件不存在：${resource.path}`)
+    continue
+  }
+  try {
+    const rules = JSON.parse(fs.readFileSync(rulesPath, 'utf8'))
+    if (!Array.isArray(rules) || rules.length === 0) problems.push('DNR 规则为空')
+    else notes.push(`DNR 规则 ${rules.length} 条（用于放行豆瓣图床的 Referer 校验）`)
+  } catch (err) {
+    problems.push(`DNR 规则不是合法 JSON：${resource.path}`)
+  }
+}
 
 // 3 & 5. 源码检查
 function walk(dir) {

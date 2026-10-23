@@ -12,6 +12,7 @@ export const UI = {
   GET_STATE: 'ui:getState',
   PICK: 'ui:pick',
   SYNC: 'ui:sync',
+  DETAIL: 'ui:detail',
   SET_SCOPES: 'ui:setScopes',
   SET_UID: 'ui:setUid',
   CLEAR_HISTORY: 'ui:clearHistory',
@@ -30,6 +31,7 @@ export const CS = {
   PING: 'cs:ping',
   PROBE_LOGIN: 'cs:probeLogin',
   FETCH_ALL: 'cs:fetchAll',
+  DETAIL: 'cs:detail',
 }
 
 /** content script -> service worker */
