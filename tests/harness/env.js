@@ -146,6 +146,18 @@ export function createEnv({ uid = '20250101', loggedIn = true, mineRedirect = tr
     )
   }
 
+  // 记录并发情况，用于验证「维度间并行、维度内串行」
+  const stats = {
+    inflight: 0,
+    maxInflight: 0,
+    byType: {},
+    reset() {
+      stats.inflight = 0
+      stats.maxInflight = 0
+      stats.byType = {}
+    },
+  }
+
   async function mockFetch(url, tab) {
     const href = String(url)
 
@@ -173,9 +185,23 @@ export function createEnv({ uid = '20250101', loggedIn = true, mineRedirect = tr
     const type = u.searchParams.get('type')
     const start = Number(u.searchParams.get('start') ?? 0)
     const count = Number(u.searchParams.get('count') ?? 50)
-    const all = type === 'movie' ? dataset.movie : dataset.book
-    const page = all.slice(start, start + count)
-    return fakeResponse(200, href, { start, count, total: all.length, interests: page })
+
+    stats.inflight += 1
+    stats.maxInflight = Math.max(stats.maxInflight, stats.inflight)
+    const slot = (stats.byType[type] ??= { concurrent: 0, maxConcurrent: 0 })
+    slot.concurrent += 1
+    slot.maxConcurrent = Math.max(slot.maxConcurrent, slot.concurrent)
+
+    try {
+      // 模拟网络往返，让并发/串行可观测
+      await new Promise((r) => setTimeout(r, 10))
+      const all = type === 'movie' ? dataset.movie : dataset.book
+      const page = all.slice(start, start + count)
+      return fakeResponse(200, href, { start, count, total: all.length, interests: page })
+    } finally {
+      stats.inflight -= 1
+      slot.concurrent -= 1
+    }
   }
 
   const tabsApi = {
@@ -228,6 +254,7 @@ export function createEnv({ uid = '20250101', loggedIn = true, mineRedirect = tr
     chrome,
     store,
     tabs,
+    stats,
     /** 模拟侧边栏向 service worker 发消息 */
     uiSend: (message) => dispatchTo(swListeners, message, {}),
     /** 在某个标签页上挂 DOM 链接，用于测试 DOM 兜底 */

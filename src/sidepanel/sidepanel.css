@@ -75,13 +75,24 @@ button:active:not(:disabled) {
 }
 
 button:disabled {
-  opacity: 0.45;
-  cursor: default;
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+button:disabled:active {
+  transform: none;
+}
+
+.ghost:disabled,
+.ghost:disabled:hover {
+  border-color: var(--line);
+  color: var(--muted);
+  background: transparent;
 }
 
 .icon-btn {
-  width: 22px;
-  height: 22px;
+  width: 17px;
+  height: 17px;
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -90,7 +101,7 @@ button:disabled {
   border-color: var(--line);
   background: transparent;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 10px;
   line-height: 1;
 }
 

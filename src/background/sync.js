@@ -10,7 +10,7 @@ import { DIMENSIONS, allDimensionKeys, isFresh } from '../lib/cache.js'
 import { CONFIG } from '../lib/config.js'
 import { cooldownRemaining } from '../lib/cooldown.js'
 import { normalizeInterests } from '../lib/model.js'
-import { readAll, writeCache } from './storage.js'
+import { readAll, writeCache, writeSettings } from './storage.js'
 
 const READY_TIMEOUT_MS = 15000
 const SYNC_TIMEOUT_MS = 180000
@@ -205,8 +205,6 @@ export async function runSync(options = {}) {
 async function doSync({ force = false } = {}) {
   const { settings, caches } = await readAll()
 
-  if (!settings.uid) return { ok: false, error: { code: ERROR.NO_UID } }
-
   // 三个类别始终可用，同步时两个维度都拉
   const wanted = allDimensionKeys()
   const targets = force ? wanted : wanted.filter((key) => !isFresh(caches[key]))
@@ -239,22 +237,14 @@ async function doSync({ force = false } = {}) {
       }
     }
 
-    const results = []
-    for (const key of targets) {
-      const dimension = DIMENSIONS.find((d) => d.key === key)
-      if (!dimension) continue
-      broadcast({ type: SW_EVENT.SYNC_PROGRESS, dimension: key, fetched: 0, total: 0, started: true })
+    // 首次使用：探测时已经顺手拿到了 uid，不必再单独开一次标签页
+    const uid = settings.uid || login.uid
+    if (!uid) return { ok: false, error: { code: ERROR.NO_UID } }
+    if (!settings.uid) await writeSettings({ uid })
 
-      const result = await fetchDimension(tabId, {
-        uid: settings.uid,
-        type: dimension.type,
-        dimension: key,
-      })
-      results.push({ key, ...result })
-
-      if (result.error?.code === ERROR.AUTH_REQUIRED) break
-      if (result.error?.code === ERROR.RATE_LIMITED) break
-    }
+    // 两个维度各跑一条串行流：流内仍然保持分页间隔，
+    // 流间并发最多 CONFIG.maxConcurrentDimensions 条，用来把总时长减半。
+    const results = await runDimensions(targets, tabId, uid)
 
     const authFailed = results.some((r) => r.error?.code === ERROR.AUTH_REQUIRED)
     const rateLimited = results.some((r) => r.error?.code === ERROR.RATE_LIMITED)
@@ -276,6 +266,28 @@ async function doSync({ force = false } = {}) {
     }
     pending.clear()
   }
+}
+
+/** 按并发上限把维度分成若干条流 */
+async function runDimensions(targets, tabId, uid) {
+  const limit = Math.max(1, CONFIG.maxConcurrentDimensions)
+  const queue = targets.slice()
+  const results = []
+
+  const worker = async () => {
+    while (queue.length) {
+      const key = queue.shift()
+      const dimension = DIMENSIONS.find((d) => d.key === key)
+      if (!dimension) continue
+
+      broadcast({ type: SW_EVENT.SYNC_PROGRESS, dimension: key, fetched: 0, total: 0, started: true })
+      const result = await fetchDimension(tabId, { uid, type: dimension.type, dimension: key })
+      results.push({ key, ...result })
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, targets.length) }, worker))
+  return results
 }
 
 /** 供侧边栏检查登录状态时使用 */

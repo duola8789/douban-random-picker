@@ -23,6 +23,7 @@ test('探测登录态能拿到 uid', async () => {
 
 test('同步后缓存里有电影、剧集、图书三类', async () => {
   await env.uiSend({ type: 'ui:setUid', uid: '20250101' })
+  env.stats.reset()
 
   const res = await env.uiSend({ type: 'ui:sync', force: true })
   assert.equal(res.ok, true, `同步失败：${JSON.stringify(res.error)}`)
@@ -36,6 +37,13 @@ test('同步后缓存里有电影、剧集、图书三类', async () => {
   assert.equal(movieCache.byCategory.tv, 30)
   assert.equal(bookCache.count, 80)
   assert.ok(movieCache.syncedAt > 0)
+})
+
+test('不同维度并行，同一维度内部串行', () => {
+  // 两个维度各 3 页左右，同时起跑
+  assert.ok(env.stats.maxInflight >= 2, `最大并发应为 2，实际 ${env.stats.maxInflight}`)
+  assert.equal(env.stats.byType.movie.maxConcurrent, 1, '电影维度内必须串行')
+  assert.equal(env.stats.byType.book.maxConcurrent, 1, '图书维度内必须串行')
 })
 
 test('抽取只从指定类别里取，并记为待看', async () => {

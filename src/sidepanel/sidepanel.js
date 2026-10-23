@@ -27,6 +27,7 @@ const el = {
 }
 
 const CATEGORY_LABEL = { movie: '电影', tv: '剧集', book: '图书' }
+const CATEGORY_UNIT = { movie: '部电影', tv: '部剧集', book: '本书' }
 
 const state = {
   settings: null,
@@ -81,8 +82,17 @@ async function boot() {
   state.syncing = Boolean(res.syncing)
   render()
 
-  if (!state.settings.uid) await detectUid()
-  if (state.needsSetup) return
+  // 首次使用：直接同步。同步过程本身会做登录探测并顺手拿到 uid，
+  // 不必先单独探测一次再同步——那会多开一个标签页、多等一次页面加载。
+  if (!state.settings.uid) {
+    const result = await runSync({ force: true })
+    if (!result?.ok) {
+      state.needsSetup = true
+      state.probeReason = result?.error?.reason ?? result?.error?.code ?? 'unknown'
+    }
+    render()
+    return
+  }
 
   await ensureFresh()
   render()
@@ -535,8 +545,9 @@ function placeholderView() {
     title.textContent = '这一类还没有候选'
     hint.textContent = '点右上角「同步」拉一次，或者去豆瓣标记一些。'
   } else {
+    const n = countByCategory()[state.active]
     title.textContent = '准备好了'
-    hint.textContent = `从「${CATEGORY_LABEL[state.active]}」里抽一个。`
+    hint.textContent = `从 ${n} ${CATEGORY_UNIT[state.active]}里抽一个。`
   }
 
   wrap.append(title, hint)
@@ -692,12 +703,13 @@ function renderHistory() {
   const list = el.historyList
   list.replaceChildren()
 
-  const rows = state.records.filter((r) => r.category === state.active).slice(-30).reverse()
+  // 记录是共用的：三个类别抽过的都在这里，按时间倒序
+  const rows = state.records.slice(-30).reverse()
 
   if (!rows.length) {
     const li = document.createElement('li')
     li.className = 'empty-line'
-    li.textContent = `还没有抽过${CATEGORY_LABEL[state.active]}。`
+    li.textContent = '还没有抽过。'
     list.append(li)
     return
   }
@@ -720,7 +732,7 @@ function renderHistory() {
 
     const sub = document.createElement('span')
     sub.className = 'row-sub'
-    sub.textContent = formatTime(record.drawnAt)
+    sub.textContent = `${CATEGORY_LABEL[record.category] ?? '条目'} · ${formatTime(record.drawnAt)}`
 
     main.append(title, sub)
 
