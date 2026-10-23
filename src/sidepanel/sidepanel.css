@@ -477,11 +477,23 @@ button:disabled:active {
 }
 
 .card-body {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 9px;
-  padding: 12px 14px 14px;
+  padding: 16px 14px 14px;
+}
+
+/* 简介与上半部分之间的一条发丝线，内缩，不贴卡片边缘 */
+.card-body::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 14px;
+  right: 14px;
+  height: 1px;
+  background: var(--line);
 }
 
 .card-body[hidden] {
@@ -563,7 +575,8 @@ button:disabled:active {
 .my-mark .my-rating {
   font-size: 12px;
   letter-spacing: 1.5px;
-  color: var(--accent);
+  /* 与豆瓣评分同色系：都是评分，靠位置和标签区分归属 */
+  color: #b07d2b;
   line-height: 1.2;
 }
 

@@ -10,6 +10,9 @@ import { allDimensionKeys, isFresh } from '../lib/cache.js'
 import { pendingFor, canSkip } from '../lib/history.js'
 import { CATEGORY_LABEL, CATEGORY_UNIT, sourceTag, stateTag, renderTag } from '../lib/labels.js'
 
+/** 抽取按钮按类别换措辞：一部电影 / 一本书 */
+const DRAW_LABEL = { movie: '抽一部', tv: '抽一部', book: '抽一本' }
+
 const $ = (sel) => document.querySelector(sel)
 
 const el = {
@@ -399,7 +402,7 @@ function renderActions() {
 
   el.draw.disabled =
     state.syncing || state.drawing || state.needsSetup || Boolean(state.blocking)
-  el.draw.textContent = '抽一个'
+  el.draw.textContent = DRAW_LABEL[state.active] ?? '抽一个'
 
   if (pending) {
     const allowed = canSkip(state.records, state.active)
@@ -572,7 +575,7 @@ function placeholderView() {
     hint.textContent = '点右上角「同步」拉一次，或者去豆瓣标记一些。'
   } else {
     const n = countByCategory()[state.active]
-    title.textContent = '准备好了'
+    title.textContent = '少一点选择，多一点开始'
     hint.textContent = `从 ${n} ${CATEGORY_UNIT[state.active]}里抽一个。`
   }
 
@@ -664,7 +667,7 @@ function cardView(record) {
     const eyebrow = document.createElement('div')
     eyebrow.className = 'my-mark-eyebrow'
     // 来源和标记时间都是「我」和这部片子的关系，放在一起
-    eyebrow.textContent = [ '我的标记', sourceTag(record).label, record.markedOn ]
+    eyebrow.textContent = ['我的标记', `来自「${sourceTag(record).label}」`, record.markedOn]
       .filter(Boolean)
       .join(' · ')
     mine.append(eyebrow)
