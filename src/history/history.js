@@ -2,28 +2,15 @@
  * 全部记录页。
  *
  * 从侧边栏「查看全部记录」打开，是一个普通的扩展页面（新标签页）。
- * 侧边栏放不下完整列表，这里也不抢侧边栏的高度。
+ * 只展示「抽过什么」，不展示候选——候选列表是另一件事。
  */
 
 import { UI } from '../lib/messages.js'
-
-const CATEGORY_LABEL = { movie: '电影', tv: '剧集', book: '图书' }
+import { CATEGORY_LABEL, sourceTag, stateTag, renderTag } from '../lib/labels.js'
 
 const list = document.getElementById('list')
 const empty = document.getElementById('empty')
 const meta = document.getElementById('meta')
-
-function stateLabel(record) {
-  const book = record.category === 'book'
-  switch (record.state) {
-    case 'done':
-      return book ? '读过' : '看过'
-    case 'skipped':
-      return '跳过'
-    default:
-      return book ? '待读' : '待看'
-  }
-}
 
 function formatTime(ts) {
   if (!ts) return ''
@@ -73,11 +60,11 @@ function render(records) {
 
     main.append(title, sub)
 
-    const chip = document.createElement('span')
-    chip.className = `state state-${record.state}`
-    chip.textContent = stateLabel(record)
+    const tags = document.createElement('span')
+    tags.className = 'tag-row'
+    tags.append(renderTag(sourceTag(record)), renderTag(stateTag(record)))
 
-    row.append(dot, main, chip)
+    row.append(dot, main, tags)
     frag.append(row)
   }
 

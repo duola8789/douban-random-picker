@@ -106,7 +106,7 @@ test('别的类别仍有跳过机会', async () => {
   assert.equal(res.ok, true, '电影类别今天还没跳过')
 })
 
-test('抽中后能补到简介', async () => {
+test('抽中后能补到简介，并能写回记录避免重复请求', async () => {
   const state = await env.uiSend({ type: 'ui:getState' })
   const pending = state.records.find((r) => r.state === 'pending')
   assert.ok(pending)
@@ -119,6 +119,13 @@ test('抽中后能补到简介', async () => {
   assert.equal(res.ok, true)
   assert.equal(res.detail.ok, true)
   assert.ok(res.detail.intro.includes(pending.subjectId))
+
+  const saved = await env.uiSend({ type: 'ui:saveIntro', key: pending.key, intro: res.detail.intro })
+  assert.equal(saved.ok, true)
+
+  const after = await env.uiSend({ type: 'ui:getState' })
+  const same = after.records.find((r) => r.key === pending.key)
+  assert.equal(same.intro, res.detail.intro, '简介应写回记录，下次不用再请求')
 })
 
 test('清空记录会保留待看', async () => {
