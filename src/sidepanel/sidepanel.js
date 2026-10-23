@@ -10,8 +10,12 @@ import { allDimensionKeys, isFresh } from '../lib/cache.js'
 import { pendingFor, canSkip } from '../lib/history.js'
 import { CATEGORY_LABEL, CATEGORY_UNIT, sourceTag, stateTag, renderTag } from '../lib/labels.js'
 
-/** 抽取按钮按类别换措辞：一部电影 / 一本书 */
-const DRAW_LABEL = { movie: '抽一部', tv: '抽一部', book: '抽一本' }
+/** 抽取按钮：统一叫「开始吧」，正好接住 slogan 的后半句 */
+const DRAW_LABEL = '开始吧'
+
+/** 提示语里的量词：挑一部 / 挑一本 */
+const DRAW_UNIT = { movie: '一部', tv: '一部', book: '一本' }
+const COUNT_UNIT = { movie: '部', tv: '部', book: '本' }
 
 const $ = (sel) => document.querySelector(sel)
 
@@ -402,7 +406,7 @@ function renderActions() {
 
   el.draw.disabled =
     state.syncing || state.drawing || state.needsSetup || Boolean(state.blocking)
-  el.draw.textContent = DRAW_LABEL[state.active] ?? '抽一个'
+  el.draw.textContent = DRAW_LABEL
 
   if (pending) {
     const allowed = canSkip(state.records, state.active)
@@ -571,12 +575,12 @@ function placeholderView() {
       ? `已取回 ${state.progress.fetched} / ${state.progress.total} 条`
       : '正在读取你在豆瓣的标记…'
   } else if (countByCategory()[state.active] === 0) {
-    title.textContent = '这一类还没有候选'
-    hint.textContent = '点右上角「同步」拉一次，或者去豆瓣标记一些。'
+    title.textContent = '这一类还空着'
+    hint.textContent = `点右上角同步拉一次，或者先去豆瓣添几${COUNT_UNIT[state.active]}。`
   } else {
     const n = countByCategory()[state.active]
     title.textContent = '少一点选择，多一点开始'
-    hint.textContent = `从 ${n} ${CATEGORY_UNIT[state.active]}里抽一个。`
+    hint.textContent = `${n} ${CATEGORY_UNIT[state.active]}，挑${DRAW_UNIT[state.active]}开始。`
   }
 
   wrap.append(title, hint)
@@ -764,7 +768,7 @@ function renderHistory() {
   if (!rows.length) {
     const li = document.createElement('li')
     li.className = 'empty-line'
-    li.textContent = '还没有抽过。'
+    li.textContent = '还没开始过。'
     list.append(li)
     return
   }
