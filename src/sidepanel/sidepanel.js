@@ -15,6 +15,7 @@ const el = {
   draw: $('#draw'),
   sync: $('#sync'),
   syncAll: $('#sync-all'),
+  resetAccount: $('#reset-account'),
   historyList: $('#history-list'),
   clearHistory: $('#clear-history'),
   toast: $('#toast'),
@@ -28,6 +29,7 @@ const state = {
   item: null,
   syncing: false,
   needsSetup: false,
+  probeReason: null,
   notice: null,
   progress: null,
 }
@@ -73,12 +75,16 @@ async function detectUid() {
   const probe = await send({ type: UI.PROBE_LOGIN })
   const uid = probe?.login?.ok ? probe.login.uid : ''
   if (!uid) {
+    console.warn('[豆瓣随机一部] 自动识别 uid 失败', probe)
+    state.probeReason = probe?.login?.reason ?? probe?.error?.code ?? 'unknown'
     state.needsSetup = true
     render()
     return
   }
   await send({ type: UI.SET_UID, uid })
   state.settings.uid = uid
+  state.needsSetup = false
+  state.probeReason = null
 }
 
 /** 打开侧边栏时：缓存过期就后台刷新，先用旧数据渲染 */
@@ -100,7 +106,10 @@ async function runSync({ force = false, all = false } = {}) {
   state.syncing = false
   state.progress = null
 
-  if (res?.error) state.notice = noticeFor(res.error)
+  if (res?.error) {
+    console.warn('[豆瓣随机一部] 同步失败', res)
+    state.notice = noticeFor(res.error)
+  }
   await refreshState()
   render()
   return res
@@ -140,11 +149,14 @@ function noticeFor(error) {
     case 'NO_UID':
       state.needsSetup = true
       return { text: '还没有设置豆瓣账号。' }
-    case 'AUTH_REQUIRED':
+    case 'AUTH_REQUIRED': {
+      // 括号里是探测失败的具体原因，便于排查；不熟悉技术可以忽略
+      const reason = error?.reason ? `（${error.reason}）` : ''
       return {
-        text: '登录已失效。请先在豆瓣网页登录，再回来同步。',
+        text: `没能确认登录状态。请先在豆瓣网页登录，再回来同步。${reason}`,
         action: { label: '打开豆瓣', kind: 'login' },
       }
+    }
     case 'NO_DOUBAN_TAB':
       return { text: '无法打开豆瓣页面，请先在浏览器里打开任意豆瓣页面后再同步。' }
     case 'RATE_LIMITED':
@@ -226,7 +238,10 @@ function setupView() {
   const title = document.createElement('strong')
   title.textContent = '先告诉我在哪儿找你'
   const hint = document.createElement('span')
-  hint.textContent = '粘贴你的豆瓣个人主页地址，例如 https://www.douban.com/people/123456/'
+  const base = state.settings?.uid
+    ? '没能确认登录状态。请先在豆瓣网页登录，或直接粘贴个人主页地址。'
+    : '没能自动识别。请先在豆瓣网页登录，或直接粘贴个人主页地址。'
+  hint.textContent = state.probeReason ? `${base}（${state.probeReason}）` : base
 
   const form = document.createElement('form')
   form.className = 'setup'
@@ -255,7 +270,17 @@ function setupView() {
     await runSync({ force: true })
   })
 
-  wrap.append(title, hint, form)
+  const retry = document.createElement('button')
+  retry.type = 'button'
+  retry.className = 'link'
+  retry.textContent = '再自动识别一次'
+  retry.addEventListener('click', async () => {
+    retry.disabled = true
+    await detectUid()
+    render()
+  })
+
+  wrap.append(title, hint, form, retry)
   queueMicrotask(() => input.focus())
   return wrap
 }
@@ -502,6 +527,18 @@ for (const input of el.scopes) {
 el.draw.addEventListener('click', draw)
 el.sync.addEventListener('click', () => runSync({ force: true }))
 el.syncAll.addEventListener('click', () => runSync({ force: true, all: true }))
+
+el.resetAccount.addEventListener('click', async () => {
+  await send({ type: UI.SET_UID, uid: '' })
+  state.settings.uid = ''
+  state.item = null
+  state.notice = null
+  state.probeReason = null
+  state.needsSetup = false
+  render()
+  await detectUid()
+  render()
+})
 
 let clearArmed = false
 el.clearHistory.addEventListener('click', async () => {

@@ -32,7 +32,7 @@ function broadcast(message) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-/** 找一个能通信的豆瓣标签页；没有就临时开一个 */
+/** 找一个能通信的豆瓣标签页；没有就临时开一个「我的豆瓣」 */
 async function ensureDoubanTab() {
   const tabs = await chrome.tabs.query({ url: 'https://*.douban.com/*' })
   // 优先 www.douban.com：/mine/ 探测在同源下不会被 CORS 拦
@@ -42,17 +42,27 @@ async function ensureDoubanTab() {
     if (await pingTab(tab.id)) return { tabId: tab.id, temporary: false }
   }
 
-  const created = await chrome.tabs.create({ url: 'https://www.douban.com/', active: false })
+  return createMineTab()
+}
+
+/** 开一个后台标签页停在「我的豆瓣」——登录探测最可靠的上下文 */
+async function createMineTab() {
+  const created = await chrome.tabs.create({
+    url: 'https://www.douban.com/mine/',
+    active: false,
+  })
   const ready = await waitForReady(created.id)
   if (!ready) {
+    chrome.tabs.remove(created.id).catch(() => {})
     throw Object.assign(new Error('content script not ready'), { code: ERROR.NO_DOUBAN_TAB })
   }
   return { tabId: created.id, temporary: true }
 }
 
 function scoreTab(url = '') {
-  if (url.startsWith('https://www.douban.com/')) return 2
-  if (url.startsWith('https://www.douban.com')) return 1
+  if (/^https:\/\/www\.douban\.com\/people\//.test(url)) return 3
+  if (/^https:\/\/www\.douban\.com\/mine/.test(url)) return 2
+  if (url.startsWith('https://www.douban.com/')) return 1
   return 0
 }
 
@@ -82,8 +92,34 @@ async function probeLogin(tabId) {
   }
 }
 
+/**
+ * 探测登录态。
+ *
+ * 复用已有标签页时，如果它不在个人主页或「我的豆瓣」上，
+ * probeLogin 可能给不出确定答案（比如豆瓣不再重定向 /mine/）。
+ * 这时换一个停在 /mine/ 的后台标签页再确认一次——这是本方法存在的理由。
+ */
+async function probeWithFallback() {
+  const tab = await ensureDoubanTab()
+  let login = await probeLogin(tab.tabId)
+
+  if (login?.ok || tab.temporary) {
+    return { login, tabId: tab.tabId, temporary: tab.temporary }
+  }
+
+  try {
+    const mine = await createMineTab()
+    const retry = await probeLogin(mine.tabId)
+    if (retry?.ok) return { login: retry, tabId: mine.tabId, temporary: true }
+    chrome.tabs.remove(mine.tabId).catch(() => {})
+    return { login: retry ?? login, tabId: tab.tabId, temporary: false }
+  } catch {
+    return { login, tabId: tab.tabId, temporary: false }
+  }
+}
+
 /** 下发一个维度的拉取任务，等待 content script 回传结果 */
-function fetchDimension(tabId, { uid, type, dimension }) {
+function fetchDimension(tabId, { uid, type: mediaType, dimension }) {
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
       pending.delete(dimension)
@@ -100,7 +136,8 @@ function fetchDimension(tabId, { uid, type, dimension }) {
       {
         type: CS.FETCH_ALL,
         uid,
-        type,
+        // 注意别写成 type，会和消息类型同名互相覆盖
+        mediaType,
         status: 'mark',
         dimension,
         // 请求参数由这里下发，content script 不自己维护一份
@@ -183,18 +220,22 @@ async function doSync({ force = false, all = false } = {}) {
 
   let tabId
   let temporary = false
+  let login
   try {
-    const tab = await ensureDoubanTab()
-    tabId = tab.tabId
-    temporary = tab.temporary
+    const probed = await probeWithFallback()
+    tabId = probed.tabId
+    temporary = probed.temporary
+    login = probed.login
   } catch (err) {
     return { ok: false, error: { code: err.code ?? ERROR.NO_DOUBAN_TAB } }
   }
 
   try {
-    const login = await probeLogin(tabId)
     if (!login?.ok) {
-      return { ok: false, error: { code: ERROR.AUTH_REQUIRED, reason: login?.reason } }
+      return {
+        ok: false,
+        error: { code: ERROR.AUTH_REQUIRED, reason: login?.reason ?? 'unknown' },
+      }
     }
 
     const results = []
@@ -238,19 +279,16 @@ async function doSync({ force = false, all = false } = {}) {
 
 /** 供侧边栏检查登录状态时使用 */
 export async function checkLogin() {
-  let tab
-  let temporary = false
+  let probed
   try {
-    const t = await ensureDoubanTab()
-    tab = t.tabId
-    temporary = t.temporary
+    probed = await probeWithFallback()
   } catch (err) {
     return { ok: false, error: { code: err.code ?? ERROR.NO_DOUBAN_TAB } }
   }
+
   try {
-    const login = await probeLogin(tab)
-    return { ok: true, login }
+    return { ok: true, login: probed.login }
   } finally {
-    if (temporary) chrome.tabs.remove(tab).catch(() => {})
+    if (probed.temporary) chrome.tabs.remove(probed.tabId).catch(() => {})
   }
 }
