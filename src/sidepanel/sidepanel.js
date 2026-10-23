@@ -216,7 +216,7 @@ function skip() {
 
   openConfirm({
     title: '不想看它？',
-    text: '今天只有这一次机会。',
+    text: '这一类今天只有一次机会。',
     okLabel: '不想看它',
     onOk: () => doSkip(pending.key),
   })
@@ -336,7 +336,7 @@ function noticeFor(error) {
     case 'PENDING_EXISTS':
       return { text: '这一部还没了结。看完它，或者点「不想看它」。', blocking: false }
     case 'SKIP_LIMIT':
-      return { text: '今天已经拒过一部了，明天再来。', blocking: false }
+      return { text: '这一类今天已经拒过了，明天再来。', blocking: false }
     case 'NO_CANDIDATES':
       return { text: '这一类的候选是空的。可以先同步，或去豆瓣标记一些。', blocking: true }
     case 'POOL_EXHAUSTED':
@@ -409,7 +409,7 @@ function renderActions() {
     const allowed = canSkip(state.records, state.active)
     el.openDouban.disabled = false
     el.skip.disabled = !allowed
-    el.skip.textContent = allowed ? '不想看它（一天就一次）' : '明天再说'
+    el.skip.textContent = allowed ? '不想看它（一天一次）' : '这一类明天再说'
   }
 }
 
