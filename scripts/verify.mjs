@@ -104,17 +104,26 @@ for (const file of jsFiles) {
 
 notes.push(`源码 ${jsFiles.length} 个文件，import 与被禁用 API 检查通过`)
 
-// 4. 侧边栏 HTML 的本地资源
-const panelHtml = manifest.side_panel?.default_path
-if (panelHtml) {
-  const full = path.join(root, panelHtml)
-  const html = fs.readFileSync(full, 'utf8')
-  for (const match of html.matchAll(/(?:src|href)="(\.\/[^"]+)"/g)) {
-    const target = path.resolve(path.dirname(full), match[1])
-    if (!fs.existsSync(target)) problems.push(`侧边栏引用了不存在的资源：${match[1]}`)
+// 4. 所有扩展页面的本地资源
+function walkHtml(dir) {
+  const out = []
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) out.push(...walkHtml(full))
+    else if (entry.name.endsWith('.html')) out.push(full)
   }
-  notes.push('侧边栏 HTML 的本地资源均存在')
+  return out
 }
+
+for (const htmlFile of walkHtml(path.join(root, 'src'))) {
+  const html = fs.readFileSync(htmlFile, 'utf8')
+  const rel = path.relative(root, htmlFile)
+  for (const match of html.matchAll(/(?:src|href)="(\.\.?\/[^"]+)"/g)) {
+    const target = path.resolve(path.dirname(htmlFile), match[1])
+    if (!fs.existsSync(target)) problems.push(`${rel} 引用了不存在的资源：${match[1]}`)
+  }
+}
+notes.push(`扩展页面 ${walkHtml(path.join(root, 'src')).length} 个，本地资源均存在`)
 
 for (const note of notes) console.log(`  ✓ ${note}`)
 

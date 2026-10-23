@@ -1,6 +1,6 @@
 {
   "name": "douban-random-picker",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "private": true,
   "type": "module",
   "description": "少一点选择，多一点开始。",
