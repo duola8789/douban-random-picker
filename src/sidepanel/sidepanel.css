@@ -88,6 +88,12 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* 禁用态下鼠标在按钮内部的文字上也要保持 not-allowed */
+button:disabled *,
+button:disabled:hover {
+  cursor: not-allowed;
+}
+
 button:disabled:active {
   transform: none;
 }
