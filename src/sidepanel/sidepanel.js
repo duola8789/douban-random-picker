@@ -336,6 +336,8 @@ function fillIntro() {
     p.textContent = text
     slot.append(p)
   }
+
+  syncScrollFade()
 }
 
 // ---------------------------------------------------------------- 错误文案
@@ -398,6 +400,20 @@ function setCooldown(ms) {
     updateSyncButton()
   }, 1000)
   updateSyncButton()
+  syncScrollFade()
+}
+
+/** 卡片内容超出时，底部渐隐，避免文字直接切在卡片底边上 */
+function syncScrollFade() {
+  requestAnimationFrame(() => {
+    const card = el.stage.querySelector('.card')
+    if (!card) return
+    const body = card.querySelector('.card-body')
+    const overflows =
+      card.scrollHeight > card.clientHeight + 2 ||
+      (body && body.scrollHeight > body.clientHeight + 2)
+    card.classList.toggle('is-scrollable', Boolean(overflows))
+  })
 }
 
 function updateSyncButton() {
@@ -811,6 +827,7 @@ function fillInfoInto(slot, record) {
       list.append(k, v)
     }
     slot.append(list)
+    syncScrollFade()
     return
   }
 
