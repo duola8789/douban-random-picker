@@ -279,9 +279,12 @@ function fillIntro() {
 
   if (!state.intro) {
     slot.hidden = true
+    // 没有简介时整块下半部分收起来，避免留一条空白
+    if (cardRefs.body) cardRefs.body.hidden = true
     return
   }
   slot.hidden = false
+  if (cardRefs.body) cardRefs.body.hidden = false
 
   // 完整显示：卡片会撑高，超出时由舞台滚动
   const p = document.createElement('p')
@@ -646,25 +649,12 @@ function cardView(record) {
     info.append(sub)
   }
 
-  head.append(cover, info)
-
-  // 下半部分：简介 + 我的标记，横跨整张卡片
-  const body = document.createElement('div')
-  body.className = 'card-body'
-
-  const introSlot = document.createElement('div')
-  introSlot.className = 'intro-wrap'
-  body.append(introSlot)
-
+  // 我的标记：贴在右栏底部的小卡片
   const hasMine =
     typeof record.myRating === 'number' || Boolean(record.myComment) || Boolean(record.markedOn)
   if (hasMine) {
-    const divider = document.createElement('div')
-    divider.className = 'divider'
-    body.append(divider)
-
     const mine = document.createElement('div')
-    mine.className = 'my'
+    mine.className = 'mine-card'
 
     const label = document.createElement('div')
     label.className = 'section-label'
@@ -690,11 +680,21 @@ function cardView(record) {
       mine.append(when)
     }
 
-    body.append(mine)
+    info.append(mine)
   }
 
+  head.append(cover, info)
+
+  // 下半部分：简介横跨整张卡片
+  const body = document.createElement('div')
+  body.className = 'card-body'
+
+  const introSlot = document.createElement('div')
+  introSlot.className = 'intro-wrap'
+  body.append(introSlot)
+
   card.append(head, body)
-  return { el: card, refs: { introSlot } }
+  return { el: card, refs: { introSlot, body } }
 }
 
 /** 右侧的结构化信息行；图书没有这些字段，返回空数组 */
