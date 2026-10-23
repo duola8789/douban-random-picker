@@ -180,9 +180,9 @@ MIT，Node 22 CLI。本项目**没有引入它的任何代码**，只借用了�
 - [x] 请求频率硬下限（10 分钟最短更新 + 1200ms 分页间隔）
 - [x] 初始化 git 仓库并推送到远程
 - [x] Chrome Web Store 上架材料（`docs/store-listing.md`）
-- [ ] **上线前把 `src/lib/config.js` 的 `minRefreshMs` 从调试值 60_000 改回 600_000**
-- [ ] 确认 `dailySkipLimit` 为 1（调试期可能调大过）
-- [ ] **把 `src/lib/config.js` 的 `devTools` 改为 false**（关掉帮助面板里的「重置全部数据」）
+- [x] 打包自动处理：`npm run package` 会用 `src/lib/config.prod.js`
+      覆盖配置（10 分钟冷却、dailySkipLimit 1），并删除标记为 `dev-only`
+      的界面与样式，生产包里不含「重置全部数据」
 - [ ] 在真实 Chrome 里验收，并截图（1280×800 或 640×400）
 - [ ] 商店后台填写「数据使用」表单
 - [ ] 评估风险：豆瓣接口为非公开接口，公开发布会放大被限流与被改的概率

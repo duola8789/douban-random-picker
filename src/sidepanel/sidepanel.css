@@ -1044,6 +1044,7 @@ button:disabled:active {
   color: #4a473f;
 }
 
+/* dev-only:start */
 .dev-section {
   margin-top: 16px;
   padding-top: 12px;
@@ -1061,6 +1062,7 @@ button:disabled:active {
   font-size: 11px;
   color: var(--muted);
 }
+/* dev-only:end */
 
 @media (prefers-reduced-motion: reduce) {
   * {
