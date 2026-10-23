@@ -371,7 +371,6 @@ function updateSyncButton() {
   if (state.syncing) {
     el.sync.textContent = '同步中'
     el.sync.disabled = true
-    el.sync.title = ''
     return
   }
   if (left > 0) {
@@ -380,12 +379,10 @@ function updateSyncButton() {
     const ss = String(s % 60).padStart(2, '0')
     el.sync.textContent = `同步 ${mm}:${ss}`
     el.sync.disabled = true
-    el.sync.title = '刚同步过，稍后再试'
     return
   }
   el.sync.textContent = '同步'
   el.sync.disabled = false
-  el.sync.title = '同步你在豆瓣的标记'
 }
 
 // ---------------------------------------------------------------- 渲染
@@ -412,8 +409,7 @@ function renderActions() {
     const allowed = canSkip(state.records, state.active)
     el.openDouban.disabled = false
     el.skip.disabled = !allowed
-    el.skip.textContent = allowed ? '不想看它' : '明天再说'
-    el.skip.title = allowed ? '今天还能反悔一次' : '今天已经反悔过了，明天再来'
+    el.skip.textContent = allowed ? '不想看它（一天就一次）' : '明天再说'
   }
 }
 
@@ -680,7 +676,6 @@ function cardView(record) {
       const stars = document.createElement('div')
       stars.className = 'my-rating'
       stars.textContent = '★'.repeat(record.myRating) + '☆'.repeat(Math.max(0, 5 - record.myRating))
-      stars.title = `我的评分 ${record.myRating}`
       mine.append(stars)
     }
 
@@ -780,7 +775,6 @@ function renderHistory() {
       li.classList.add('clickable')
       li.tabIndex = 0
       li.setAttribute('role', 'link')
-      li.title = '在豆瓣打开'
       const open = () => chrome.tabs.create({ url: record.url })
       li.addEventListener('click', open)
       li.addEventListener('keydown', (event) => {
