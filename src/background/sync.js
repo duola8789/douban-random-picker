@@ -306,13 +306,40 @@ export async function checkLogin() {
   }
 }
 
+/** 详情响应里取需要的字段 */
+function pickDetail(json) {
+  const firstOf = (v) => (Array.isArray(v) ? String(v[0] ?? '') : typeof v === 'string' ? v : '')
+  return {
+    intro: typeof json?.intro === 'string' ? json.intro.trim() : '',
+    subtitle: typeof json?.card_subtitle === 'string' ? json.card_subtitle : '',
+    author: firstOf(json?.author),
+    translator: firstOf(json?.translator),
+    press: firstOf(json?.press),
+    pubdate: firstOf(json?.pubdate),
+    pages: firstOf(json?.pages),
+  }
+}
+
 /**
- * 抽中后补一条简介。
+ * 抽中后补一条简介与出版信息。
  *
- * 收藏接口不返回 intro，只在详情接口里有。复用已有豆瓣标签页，
- * 没有就临时开一个并在结束后关掉——每次抽中最多一次请求。
+ * 详情接口是公开数据，不需要登录态，所以直接从扩展发请求：
+ * DNR 给 m.douban.com 补了 Referer，host_permissions 让它能读到跨域响应。
+ * 这样抽一次不会闪一个豆瓣标签页。
+ *
+ * 直连失败时退回 content script（走页面上下文，一定带得上会话）。
  */
 export async function fetchDetail({ subjectId, category }) {
+  const kind = category === 'book' ? 'book' : 'movie'
+  const url = `https://m.douban.com/rexxar/api/v2/${kind}/${encodeURIComponent(subjectId)}`
+
+  try {
+    const res = await fetch(url, { headers: { Accept: 'application/json' } })
+    if (res.ok) return { ok: true, detail: pickDetail(await res.json()) }
+  } catch {
+    // 落到下面的备用路径
+  }
+
   let tab
   try {
     tab = await ensureDoubanTab()

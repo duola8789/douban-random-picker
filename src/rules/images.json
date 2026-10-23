@@ -14,7 +14,30 @@
     },
     "condition": {
       "urlFilter": "||doubanio.com/",
-      "resourceTypes": ["image", "xmlhttprequest"]
+      "resourceTypes": [
+        "image",
+        "xmlhttprequest"
+      ]
+    }
+  },
+  {
+    "id": 2,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://www.douban.com/"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||m.douban.com/",
+      "resourceTypes": [
+        "xmlhttprequest"
+      ]
     }
   }
 ]
