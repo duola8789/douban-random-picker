@@ -11,10 +11,11 @@
 export const UI = {
   GET_STATE: 'ui:getState',
   PICK: 'ui:pick',
+  SKIP: 'ui:skip',
   SYNC: 'ui:sync',
   DETAIL: 'ui:detail',
-  SET_SCOPES: 'ui:setScopes',
   SET_UID: 'ui:setUid',
+  SET_CATEGORY: 'ui:setCategory',
   CLEAR_HISTORY: 'ui:clearHistory',
   PROBE_LOGIN: 'ui:probeLogin',
 }
@@ -48,9 +49,10 @@ export const ERROR = {
   RATE_LIMITED: 'RATE_LIMITED',
   /** 距上次成功同步不足最短更新频率 */
   TOO_SOON: 'TOO_SOON',
-  NETWORK: 'NETWORK',
   NO_SCOPE: 'NO_SCOPE',
   NO_CANDIDATES: 'NO_CANDIDATES',
   POOL_EXHAUSTED: 'POOL_EXHAUSTED',
+  /** 该类别已有待看条目，必须先处理掉才能再抽 */
+  PENDING_EXISTS: 'PENDING_EXISTS',
   SYNCING: 'SYNCING',
 }

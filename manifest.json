@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "豆瓣随机",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "从你标记的「想看 / 想读」里随机抽一个。",
   "icons": {
     "16": "icons/icon16.png",

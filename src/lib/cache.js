@@ -1,5 +1,5 @@
 /**
- * 纯逻辑：缓存新鲜度判断。
+ * 纯逻辑：缓存新鲜度与同步维度。
  */
 
 import { CONFIG } from './config.js'
@@ -15,12 +15,9 @@ export const DIMENSIONS = [
   { key: 'book:mark', type: 'book', categories: ['book'] },
 ]
 
-/**
- * 当前类别开关需要哪些维度。
- * @param {{movie:boolean, tv:boolean, book:boolean}} scopes
- */
-export function dimensionsForScopes(scopes) {
-  return DIMENSIONS.filter((d) => d.categories.some((c) => scopes?.[c])).map((d) => d.key)
+/** 全部维度的缓存键。三个类别始终都在，同步时全量拉取。 */
+export function allDimensionKeys() {
+  return DIMENSIONS.map((d) => d.key)
 }
 
 /**

@@ -3,9 +3,16 @@
  */
 
 import { UI, FROM_CS, SW_EVENT, ERROR } from '../lib/messages.js'
+import { CONFIG } from '../lib/config.js'
 import { ALL_CATEGORIES, buildPools, pick } from '../lib/picker.js'
-import { appendHistory, makeRecord } from '../lib/history.js'
-import { readAll, writeSettings, writeHistory, clearHistory } from './storage.js'
+import {
+  appendRecord,
+  makeRecord,
+  pendingFor,
+  resolveRecord,
+  clearResolved,
+} from '../lib/history.js'
+import { readAll, writeSettings, writeRecords } from './storage.js'
 import {
   runSync,
   handleSyncResult,
@@ -21,16 +28,16 @@ chrome.runtime.onInstalled.addListener(() => {
 })
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {})
 
-/**
- * 组装给侧边栏的完整状态。
- */
+/** 返回给侧边栏的记录条数上限——足以渲染历史，又不至于传太多 */
+const RECENT_RECORDS = 200
+
 async function getState() {
-  const { settings, caches, history } = await readAll()
+  const { settings, caches, records } = await readAll()
   return {
     ok: true,
     settings,
     caches: summarizeCaches(caches),
-    history: history.slice(-30).reverse(),
+    records: records.slice(-RECENT_RECORDS),
     syncing: isSyncing(),
   }
 }
@@ -56,28 +63,60 @@ function summarizeCaches(caches) {
 }
 
 /** 跑一次同步并广播结束事件，UI 靠它刷新 */
-async function startSync({ force = false, all = false } = {}) {
-  const result = await runSync({ force, all })
+async function startSync({ force = false } = {}) {
+  const result = await runSync({ force })
   chrome.runtime.sendMessage({ type: SW_EVENT.SYNC_FINISHED, result }).catch(() => {})
   return result
 }
 
-async function handlePick() {
-  const { settings, caches, history } = await readAll()
-  const pools = buildPools(caches)
-  const enabled = ALL_CATEGORIES.filter((c) => settings.scopes?.[c])
+/**
+ * 抽一个。
+ *
+ * 关键规则：某个类别已有待看条目时不再抽——
+ * 否则「再抽一个」就等于没做决定。
+ */
+async function handlePick(category) {
+  if (!ALL_CATEGORIES.includes(category)) {
+    return { ok: false, error: { code: ERROR.NO_SCOPE } }
+  }
 
-  const result = pick({ pools, enabled, history, windowSize: settings.windowSize })
+  const { caches, records } = await readAll()
+
+  const pending = pendingFor(records, category)
+  if (pending) {
+    return { ok: false, error: { code: ERROR.PENDING_EXISTS, key: pending.key } }
+  }
+
+  const pools = buildPools(caches)
+  const result = pick({
+    pools,
+    enabled: [category],
+    history: records,
+    windowSize: CONFIG.dedupeWindow,
+  })
   if (result.error) return { ok: false, error: { code: result.error } }
 
   const record = makeRecord(result.item)
-  await writeHistory(appendHistory(history, record))
+  const next = appendRecord(records, record)
+  await writeRecords(next)
 
-  return { ok: true, item: result.item, drawnAt: record.drawnAt, history: [record, ...summarizeHistory(history)] }
+  return { ok: true, item: result.item, record, records: next.slice(-RECENT_RECORDS) }
 }
 
-function summarizeHistory(history) {
-  return history.slice(-29).reverse()
+/** 跳过当前待看：记录保留，只是改判状态 */
+async function handleSkip(key) {
+  const { records } = await readAll()
+  const next = resolveRecord(records, key, 'skipped')
+  await writeRecords(next)
+  return { ok: true, records: next.slice(-RECENT_RECORDS) }
+}
+
+/** 清空历史，但保留仍在待看的记录——否则清空就成了重新抽的后门 */
+async function handleClearHistory() {
+  const { records } = await readAll()
+  const next = clearResolved(records)
+  await writeRecords(next)
+  return { ok: true, records: next }
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -102,7 +141,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return true
 
     case UI.PICK:
-      handlePick().then(sendResponse)
+      handlePick(message.category).then(sendResponse)
+      return true
+
+    case UI.SKIP:
+      handleSkip(message.key).then(sendResponse)
+      return true
+
+    case UI.SYNC:
+      startSync({ force: Boolean(message.force) })
+        .then(sendResponse)
+        .catch((err) =>
+          sendResponse({ ok: false, error: { code: ERROR.NETWORK, message: String(err) } }),
+        )
       return true
 
     case UI.DETAIL:
@@ -111,28 +162,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         .catch(() => sendResponse({ ok: false, error: { code: ERROR.NETWORK } }))
       return true
 
-    case UI.SYNC:
-      startSync({ force: Boolean(message.force), all: Boolean(message.all) })
-        .then(sendResponse)
-        .catch((err) => sendResponse({ ok: false, error: { code: ERROR.NETWORK, message: String(err) } }))
-      return true
-
-    case UI.SET_SCOPES:
-      writeSettings({ scopes: message.scopes }).then((settings) => {
-        // 立即回包，同步在后台跑，进度通过广播通知界面
-        startSync({}).catch(() => {})
-        sendResponse({ ok: true, settings })
-      })
-      return true
-
     case UI.SET_UID:
       writeSettings({ uid: String(message.uid ?? '').trim() }).then((settings) =>
         sendResponse({ ok: true, settings }),
       )
       return true
 
+    case UI.SET_CATEGORY:
+      writeSettings({ category: message.category }).then((settings) =>
+        sendResponse({ ok: true, settings }),
+      )
+      return true
+
     case UI.CLEAR_HISTORY:
-      clearHistory().then(() => sendResponse({ ok: true }))
+      handleClearHistory().then(sendResponse)
       return true
 
     case UI.PROBE_LOGIN:
