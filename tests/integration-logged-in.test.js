@@ -8,6 +8,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import { createEnv } from './harness/env.js'
+import { CONFIG } from '../src/lib/config.js'
 
 const env = createEnv({ uid: '20250101', loggedIn: true })
 globalThis.chrome = env.chrome
@@ -139,7 +140,12 @@ test('清空记录会保留待看', async () => {
   assert.ok(res.records.every((r) => r.state === 'pending'))
 })
 
-test('最短更新频率拦住手动同步', async () => {
+test('最短更新频率拦住手动同步', async (t) => {
+  // 调试期可能把冷却关掉，这时这条不适用
+  if (CONFIG.minRefreshMs <= 0) {
+    t.skip('minRefreshMs 为 0，冷却已关闭')
+    return
+  }
   const res = await env.uiSend({ type: 'ui:sync', force: true })
   assert.equal(res.ok, false)
   assert.equal(res.error.code, 'TOO_SOON')
