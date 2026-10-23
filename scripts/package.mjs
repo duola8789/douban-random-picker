@@ -72,6 +72,16 @@ function walkFiles(dir) {
 
 for (const file of walkFiles(stageDir)) stripDevOnly(file)
 
+/*
+ * 本地开发时 manifest 的名字带 -local，方便在 chrome://extensions 里区分；
+ * 生产包改回正式名称。
+ */
+const stagedManifestPath = path.join(stageDir, 'manifest.json')
+const stagedManifest = JSON.parse(fs.readFileSync(stagedManifestPath, 'utf8'))
+stagedManifest.name = '豆瓣随机'
+if (stagedManifest.action) stagedManifest.action.default_title = '豆瓣随机'
+fs.writeFileSync(stagedManifestPath, `${JSON.stringify(stagedManifest, null, 2)}\n`)
+
 fs.rmSync(outFile, { force: true })
 execFileSync('zip', ['-r', '-q', outFile, ...INCLUDE], { cwd: stageDir })
 

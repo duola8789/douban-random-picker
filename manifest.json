@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "豆瓣随机",
+  "name": "豆瓣随机-local",
   "version": "0.4.36",
   "description": "少一点选择，多一点开始。",
   "icons": {
@@ -46,7 +46,7 @@
     "default_path": "src/sidepanel/index.html"
   },
   "action": {
-    "default_title": "豆瓣随机",
+    "default_title": "豆瓣随机-local",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png"

@@ -1050,22 +1050,35 @@ if (brandTitle) brandTitle.textContent = '豆瓣随机-local'
 document.title = '豆瓣随机-local'
 
 const devSection = $('#dev-section')
-const resetAll = $('#reset-all')
 if (devSection) devSection.hidden = false
-if (resetAll) {
-  resetAll.addEventListener('click', () => {
-    el.helpPanel.hidden = true
-    openConfirm({
-      title: '重置全部数据？',
-      text: 'uid、缓存、记录、封面配色都会清空，回到全新安装的状态。',
-      okLabel: '重置',
-      onOk: async () => {
-        await chrome.storage.local.clear()
-        location.reload()
-      },
-    })
+
+// 全部重置：连账号一起清掉，刷新后会重新探测登录
+$('#reset-all')?.addEventListener('click', () => {
+  el.helpPanel.hidden = true
+  openConfirm({
+    title: '重置全部数据？',
+    text: 'uid、缓存、记录、封面配色都会清空，回到全新安装的状态。',
+    okLabel: '重置',
+    onOk: async () => {
+      await chrome.storage.local.clear()
+      location.reload()
+    },
   })
-}
+})
+
+// 业务数据：只清同步结果与记录，保留账号
+$('#reset-data')?.addEventListener('click', () => {
+  el.helpPanel.hidden = true
+  openConfirm({
+    title: '重置业务数据？',
+    text: '缓存、抽取记录、封面配色会清空，账号保留，不用重新登录。',
+    okLabel: '重置',
+    onOk: async () => {
+      await chrome.storage.local.set({ caches: {}, records: [], coverColors: {} })
+      location.reload()
+    },
+  })
+})
 // dev-only:end
 el.helpClose.addEventListener('click', () => {
   el.helpPanel.hidden = true
