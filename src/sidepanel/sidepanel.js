@@ -440,7 +440,7 @@ function renderActions() {
     el.skip.classList.toggle('is-disabled', !allowed)
     el.skip.setAttribute('aria-disabled', String(!allowed))
     el.pendingActions.classList.toggle('is-locked', !allowed)
-    el.skip.textContent = allowed ? '不想看它（一天一次）' : '明天再来'
+    el.skip.textContent = allowed ? '不想看它（一天一次）' : '今天就它了'
   }
 }
 
