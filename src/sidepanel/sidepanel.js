@@ -39,7 +39,6 @@ const state = {
   intro: '',
   introLoading: false,
   introKey: null,
-  introExpanded: false,
   syncing: false,
   drawing: false,
   needsSetup: false,
@@ -197,7 +196,6 @@ async function draw() {
   if (Array.isArray(res.records)) state.records = res.records
   state.introKey = null
   state.intro = ''
-  state.introExpanded = false
   render()
 }
 
@@ -238,7 +236,6 @@ async function skip() {
 function ensureIntro(record) {
   if (!record || state.introKey === record.key) return
   state.introKey = record.key
-  state.introExpanded = false
 
   if (record.intro) {
     state.intro = record.intro
@@ -286,22 +283,11 @@ function fillIntro() {
   }
   slot.hidden = false
 
+  // 超长直接截断，原文去豆瓣看
   const p = document.createElement('p')
-  p.className = state.introExpanded ? 'intro' : 'intro clamped'
+  p.className = 'intro clamped'
   p.textContent = state.intro
   slot.append(p)
-
-  if (p.scrollHeight > p.clientHeight + 2 || state.introExpanded) {
-    const toggle = document.createElement('button')
-    toggle.type = 'button'
-    toggle.className = 'intro-toggle'
-    toggle.textContent = state.introExpanded ? '收起' : '展开'
-    toggle.addEventListener('click', () => {
-      state.introExpanded = !state.introExpanded
-      fillIntro()
-    })
-    slot.append(toggle)
-  }
 }
 
 // ---------------------------------------------------------------- 错误文案
@@ -638,7 +624,22 @@ function cardView(record) {
 
   info.append(title, meta)
 
-  if (record.subtitle) {
+  const rows = infoRows(record)
+  if (rows.length) {
+    const list = document.createElement('div')
+    list.className = 'info-rows'
+    for (const [label, value] of rows) {
+      const k = document.createElement('span')
+      k.className = 'info-label'
+      k.textContent = label
+      const v = document.createElement('span')
+      v.className = 'info-value'
+      v.textContent = value
+      list.append(k, v)
+    }
+    info.append(list)
+  } else if (record.subtitle) {
+    // 图书没有结构化的导演/主演字段，card_subtitle 已经是整理好的一行
     const sub = document.createElement('p')
     sub.className = 'subtitle'
     sub.textContent = record.subtitle
@@ -647,7 +648,7 @@ function cardView(record) {
 
   head.append(cover, info)
 
-  // 下半部分：简介与我的评分，横跨整张卡片
+  // 下半部分：简介 + 我的标记，横跨整张卡片
   const body = document.createElement('div')
   body.className = 'card-body'
 
@@ -655,13 +656,21 @@ function cardView(record) {
   introSlot.className = 'intro-wrap'
   body.append(introSlot)
 
-  if (typeof record.myRating === 'number' || record.myComment) {
+  const hasMine =
+    typeof record.myRating === 'number' || Boolean(record.myComment) || Boolean(record.markedOn)
+  if (hasMine) {
     const divider = document.createElement('div')
     divider.className = 'divider'
     body.append(divider)
 
     const mine = document.createElement('div')
     mine.className = 'my'
+
+    const label = document.createElement('div')
+    label.className = 'section-label'
+    label.textContent = '我的标记'
+    mine.append(label)
+
     if (typeof record.myRating === 'number') {
       const stars = document.createElement('div')
       stars.className = 'my-rating'
@@ -674,11 +683,41 @@ function cardView(record) {
       comment.textContent = `「${record.myComment}」`
       mine.append(comment)
     }
+    if (record.markedOn) {
+      const when = document.createElement('div')
+      when.className = 'marked-on'
+      when.textContent = `${markLabel(record)}于 ${record.markedOn}`
+      mine.append(when)
+    }
+
     body.append(mine)
   }
 
   card.append(head, body)
   return { el: card, refs: { introSlot } }
+}
+
+/** 右侧的结构化信息行；图书没有这些字段，返回空数组 */
+function infoRows(record) {
+  const rows = []
+  if (record.directors) rows.push(['导演', record.directors])
+  if (record.actors) rows.push(['主演', record.actors])
+  if (record.genres) rows.push(['类型', record.genres])
+  // 图书的 card_subtitle 已经包含作者 / 出版社 / 年份，不再重复出版日期
+  if (record.pubdate && record.category !== 'book') rows.push(['上映', record.pubdate])
+  return rows
+}
+
+function markLabel(record) {
+  const book = record.category === 'book'
+  switch (record.markStatus) {
+    case 'doing':
+      return book ? '在读' : '在看'
+    case 'done':
+      return book ? '读过' : '看过'
+    default:
+      return book ? '想读' : '想看'
+  }
 }
 
 function noCover(category) {
@@ -722,18 +761,31 @@ function renderHistory() {
   for (const record of rows) {
     const li = document.createElement('li')
 
+    if (record.url) {
+      li.classList.add('clickable')
+      li.tabIndex = 0
+      li.setAttribute('role', 'link')
+      li.title = '在豆瓣打开'
+      const open = () => chrome.tabs.create({ url: record.url })
+      li.addEventListener('click', open)
+      li.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          open()
+        }
+      })
+    }
+
     const dot = document.createElement('span')
     dot.className = `dot ${record.category}`
 
     const main = document.createElement('div')
     main.className = 'row-main'
 
-    const title = document.createElement('button')
-    title.type = 'button'
+    const title = document.createElement('span')
     title.className = 'row-title'
     title.textContent = record.title
     title.title = record.title
-    if (record.url) title.addEventListener('click', () => chrome.tabs.create({ url: record.url }))
 
     const sub = document.createElement('span')
     sub.className = 'row-sub'
@@ -746,6 +798,12 @@ function renderHistory() {
     tags.append(renderTag(sourceTag(record)), renderTag(stateTag(record)))
 
     li.append(dot, main, tags)
+    if (record.url) {
+      const arrow = document.createElement('span')
+      arrow.className = 'row-arrow'
+      arrow.textContent = '↗'
+      li.append(arrow)
+    }
     list.append(li)
   }
 }

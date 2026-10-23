@@ -38,6 +38,28 @@ function str(v) {
   return typeof v === 'string' && v.trim() ? v.trim() : undefined
 }
 
+/** [{name}] -> "甲 / 乙"；限制条数 */
+function names(list, limit = 3) {
+  if (!Array.isArray(list)) return undefined
+  const out = list
+    .map((x) => (typeof x === 'string' ? x : x?.name))
+    .filter((x) => typeof x === 'string' && x.trim())
+    .slice(0, limit)
+  return out.length ? out.join(' / ') : undefined
+}
+
+/** ["a","b"] -> "a b" */
+function joined(list) {
+  if (!Array.isArray(list)) return undefined
+  const out = list.filter((x) => typeof x === 'string' && x.trim())
+  return out.length ? out.join(' ') : undefined
+}
+
+/** 数组取第一项 */
+function first(list) {
+  return Array.isArray(list) ? str(list[0]) : str(list)
+}
+
 /**
  * @param {any} raw  接口 interests[] 中的一项
  * @returns {object|null} 无法识别出 subject.id 时返回 null
@@ -61,10 +83,16 @@ export function normalizeInterest(raw) {
     subtitle: str(subject.card_subtitle),
     // 条目在豆瓣里的标记状态：mark / doing / done。界面据此显示「来自『想看』」
     status: str(raw?.status) ?? 'mark',
+    // 结构化信息：电影有导演/主演/类型，图书只有 card_subtitle
+    directors: names(subject.directors),
+    actors: names(subject.actors, 3),
+    genres: joined(subject.genres),
+    pubdate: first(subject.pubdate) ?? str(subject.release_date),
+    // create_time 是 "2018-04-06 21:14:37" 这样的字符串，只保留日期
+    markedOn: str(raw?.create_time)?.slice(0, 10),
     // 以下三项可能缺失：v2 的豆列来源没有「我的」数据
     myRating: ratingOf(raw?.rating?.value),
     myComment: str(raw?.comment),
-    markedAt: num(raw?.create_time),
     isPrivate: raw?.is_private === true,
   }
 }
