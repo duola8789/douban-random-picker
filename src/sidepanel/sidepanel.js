@@ -199,24 +199,48 @@ async function draw() {
   const startedAt = Date.now()
   const res = await send({ type: UI.PICK, category: state.active })
 
-  // 本地抽取几乎是瞬时的，补一个最短展示时间，动画才有存在感
-  // 与 .rolling img 的动画时长保持一致
-  const minDuration = 1200
-  const elapsed = Date.now() - startedAt
-  if (elapsed < minDuration) await new Promise((r) => setTimeout(r, minDuration - elapsed))
-
-  state.drawing = false
-
   if (!res?.ok) {
+    state.drawing = false
     applyError(res?.error, '抽取')
     render()
     return
   }
 
   if (Array.isArray(res.records)) state.records = res.records
+
+  // 结果已经定了，详情请求不必等动画结束——和动画并行跑
+  const pendingDetail = prefetchDetail(res.record)
+
+  // 动画时长与 .rolling img 的 animation-duration 保持一致
+  const minDuration = 3000
+  const elapsed = Date.now() - startedAt
+  if (elapsed < minDuration) await new Promise((r) => setTimeout(r, minDuration - elapsed))
+  await pendingDetail
+
+  state.drawing = false
   state.detailKey = null
   state.intro = ''
   render()
+}
+
+/**
+ * 抽中后立刻预取详情（简介、出版信息），趁动画在播。
+ * 卡片出现时数据已就位，不用再等一两百毫秒。
+ */
+async function prefetchDetail(record) {
+  if (!record) return
+  const res = await send({
+    type: UI.DETAIL,
+    subjectId: record.subjectId,
+    category: record.category,
+  })
+  const patch = detailPatch(res?.detail ?? {})
+  if (!Object.keys(patch).length) return
+  patch.detailAt = Date.now()
+
+  const target = state.records.find((r) => r.key === record.key)
+  if (target) Object.assign(target, patch)
+  send({ type: UI.SAVE_DETAIL, key: record.key, patch })
 }
 
 function skip(event) {
