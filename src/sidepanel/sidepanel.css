@@ -388,8 +388,8 @@ button:disabled:active {
 .card-head {
   display: flex;
   gap: 12px;
-  /* 下边距给发丝线上方留出呼吸空间 */
-  padding: 14px 14px 16px;
+  /* 用间距而不是分隔线隔开上半部分与简介 */
+  padding: 14px 14px 20px;
 }
 
 .card-cover {
@@ -478,23 +478,11 @@ button:disabled:active {
 }
 
 .card-body {
-  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 9px;
-  padding: 16px 14px 14px;
-}
-
-/* 简介与上半部分之间的一条发丝线，内缩，不贴卡片边缘 */
-.card-body::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 14px;
-  right: 14px;
-  height: 1px;
-  background: var(--line);
+  padding: 0 14px 14px;
 }
 
 .card-body[hidden] {
