@@ -1105,11 +1105,11 @@ $('#reset-all')?.addEventListener('click', () => {
 $('#reset-data')?.addEventListener('click', () => {
   el.helpPanel.hidden = true
   openConfirm({
-    title: '重置业务数据？',
-    text: '缓存、抽取记录、封面配色会清空，账号保留，不用重新登录。',
+    title: '重置业务记录？',
+    text: '抽取记录会清空。同步缓存保留，不会重新请求豆瓣，也不用重新登录。',
     okLabel: '重置',
     onOk: async () => {
-      await chrome.storage.local.set({ caches: {}, records: [], coverColors: {} })
+      await chrome.storage.local.set({ records: [] })
       location.reload()
     },
   })

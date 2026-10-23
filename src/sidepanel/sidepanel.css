@@ -1051,26 +1051,21 @@ button:disabled:active {
   border-top: 1px dashed var(--line);
 }
 
-/* 业务数据：红色文字链接（当前危险等级的基准） */
+/* 全部数据：红色文字，最危险的一档 */
 .dev-link {
   color: var(--warn);
   font-size: 13px;
   padding: 0;
 }
 
-/* 全部数据：更危险一档，实心按钮 */
-.dev-danger {
-  display: block;
-  margin-bottom: 6px;
-  padding: 7px 14px;
-  border-radius: 8px;
-  background: #8a2b16;
-  color: #fff;
-  font-size: 13px;
+/* 业务数据：普通文字，危险程度低一档 */
+.dev-link.dev-link-muted {
+  margin-top: 10px;
+  color: var(--muted);
 }
 
-.dev-danger:hover {
-  background: #71220f;
+.dev-link.dev-link-muted:hover {
+  color: var(--ink);
 }
 
 .dev-hint {
