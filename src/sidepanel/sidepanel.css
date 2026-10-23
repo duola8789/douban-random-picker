@@ -545,72 +545,41 @@ button:disabled:active {
   font-size: 12px;
 }
 
-.divider {
-  height: 1px;
-  background: var(--line);
-  margin: 1px 0;
-}
-
-.my {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.section-label {
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  color: var(--muted);
-}
-
-/* 右栏底部的「我的标记」小卡片 */
-.mine-card {
+/* 右栏底部：像书页边上的批注 */
+.my-mark {
   margin-top: auto;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: #f7f3e9;
-  border: 1px solid var(--line);
+  gap: 4px;
+  padding: 1px 0 1px 10px;
+  border-left: 2px solid #dccfb4;
 }
 
-.mine-card .my-rating {
-  font-size: 13px;
-  letter-spacing: 1px;
+.my-mark-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
 }
 
-.mine-card .my-comment {
+.my-mark .my-rating {
   font-size: 12px;
-  line-height: 1.5;
+  letter-spacing: 1.5px;
+  color: var(--accent);
+  line-height: 1.2;
+}
+
+.my-mark .my-comment {
+  margin: 0;
+  font-family: Georgia, "Songti SC", "Noto Serif SC", serif;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: #45423a;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.mine-card .marked-on {
-  font-size: 11px;
-}
-
-.marked-on {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.my-rating {
-  color: var(--accent);
-  letter-spacing: 2px;
-  font-size: 13px;
-}
-
-.my-comment {
-  margin: 0;
-  color: #4a473f;
-  font-size: 13px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
 
 
 /* ---------------------------------------------------------------- 历史 */
