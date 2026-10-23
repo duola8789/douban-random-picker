@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "豆瓣随机",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "从你标记的「想看 / 想读」里随机抽一个。",
   "icons": {
     "16": "icons/icon16.png",
@@ -9,8 +9,15 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "permissions": ["storage", "sidePanel", "declarativeNetRequest"],
-  "host_permissions": ["https://*.douban.com/*", "https://*.doubanio.com/*"],
+  "permissions": [
+    "storage",
+    "sidePanel",
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "https://*.douban.com/*",
+    "https://*.doubanio.com/*"
+  ],
   "declarative_net_request": {
     "rule_resources": [
       {
@@ -26,8 +33,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://*.douban.com/*"],
-      "js": ["src/content/content.js"],
+      "matches": [
+        "https://*.douban.com/*"
+      ],
+      "js": [
+        "src/content/content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
