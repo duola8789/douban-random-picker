@@ -55,6 +55,6 @@
 - [x] 8.4 编写 `PRIVACY.md` 与 `docs/compliance.md`（法律与平台风险说明），验收：两份文档覆盖数据收集、权限用途、抓取风险与免责
 - [x] 8.5 生成 16/32/48/128 四种尺寸的扩展图标并在 manifest 中声明，验收：`chrome://extensions` 显示自定义图标
 - [x] 8.6 提供打包脚本，产出可直接上传 Chrome Web Store 的 zip，验收：zip 内只含 manifest、src、icons
-- [ ] 8.7 推送到 GitHub，设置 topics（chrome-extension / douban / random-picker），验收：远程仓库可访问且 topics 生效
-- [ ] 8.8 撰写并提交阮一峰周刊投稿 issue，验收：issue 已创建且内容包含项目简介与链接
-- [ ] 8.9 向合适的 awesome chrome extensions 列表提交 PR，验收：PR 已创建
+- [x] 8.7 推送到 GitHub，设置 topics（chrome-extension / douban / random-picker），验收：远程仓库可访问且 topics 生效
+- [ ] 8.8 提交阮一峰周刊投稿 issue（正文已备好在 `docs/promotion.md`）；**阻塞**：需要真机验收后的截图，且未上架时读者无法安装，建议上架后再投
+- [ ] 8.9 向 awesome chrome extensions 列表提交 PR；**阻塞**：唯一可用的 `themeselection/best-chrome-extensions` 强制要求 Chrome Web Store 链接，其余列表均已停止维护或为源码型仓库
