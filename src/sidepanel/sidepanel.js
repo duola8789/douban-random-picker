@@ -334,9 +334,9 @@ function noticeFor(error) {
         cooldownMs: error?.retryAfterMs ?? 0,
       }
     case 'PENDING_EXISTS':
-      return { text: '这一类还有没处理的片子，先看完或跳过再抽。', blocking: false }
+      return { text: '这一类还没了结，先看完或者算了再说。', blocking: false }
     case 'SKIP_LIMIT':
-      return { text: '今天已经跳过 1 次了，明天再来。', blocking: false }
+      return { text: '今天已经反悔过一次了，明天再来。', blocking: false }
     case 'NO_CANDIDATES':
       return { text: '这一类的候选是空的。可以先同步，或去豆瓣标记一些。', blocking: true }
     case 'POOL_EXHAUSTED':
@@ -412,8 +412,8 @@ function renderActions() {
     const allowed = canSkip(state.records, state.active)
     el.openDouban.disabled = false
     el.skip.disabled = !allowed
-    el.skip.textContent = allowed ? (skipArmed ? '确认跳过？' : '跳过') : '今天已跳过'
-    el.skip.title = allowed ? '今天还剩 1 次' : '今天已经跳过 1 次了，明天再来'
+    el.skip.textContent = allowed ? (skipArmed ? '真的算了？' : '算了') : '明天再说'
+    el.skip.title = allowed ? '今天还能反悔一次' : '今天已经反悔过了，明天再来'
   }
 }
 
