@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>豆瓣随机一部</title>
+    <link rel="stylesheet" href="./sidepanel.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <h1>豆瓣随机一部</h1>
+      <div class="bar-actions">
+        <button id="sync-all" class="ghost" type="button" title="同步全部类别">全部</button>
+        <button id="sync" class="ghost" type="button" title="立即同步当前范围">同步</button>
+      </div>
+    </header>
+
+    <section class="scopes" aria-label="候选范围">
+      <label class="chip"><input type="checkbox" data-cat="movie" /><span>电影</span></label>
+      <label class="chip"><input type="checkbox" data-cat="tv" /><span>剧集</span></label>
+      <label class="chip"><input type="checkbox" data-cat="book" /><span>图书</span></label>
+    </section>
+
+    <main id="stage" class="stage" aria-live="polite"></main>
+
+    <div class="actions">
+      <button id="draw" class="primary" type="button">抽一个</button>
+    </div>
+
+    <section class="history">
+      <div class="history-head">
+        <h2>抽过的</h2>
+        <button id="clear-history" class="link" type="button">清空</button>
+      </div>
+      <ul id="history-list" class="history-list"></ul>
+    </section>
+
+    <div id="toast" class="toast" hidden></div>
+
+    <script type="module" src="./sidepanel.js"></script>
+  </body>
+</html>

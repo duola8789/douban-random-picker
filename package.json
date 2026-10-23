@@ -1,0 +1,14 @@
+{
+  "name": "douban-random-picker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Chrome MV3 扩展：从个人豆瓣收藏中随机抽一个",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "check": "node --check src/background/service-worker.js && node --check src/background/sync.js && node --check src/content/content.js && node --check src/sidepanel/sidepanel.js",
+    "verify": "npm run check && npm test && node scripts/verify.mjs",
+    "icons": "node scripts/make-icons.mjs",
+    "package": "npm run verify && node scripts/package.mjs"
+  }
+}
