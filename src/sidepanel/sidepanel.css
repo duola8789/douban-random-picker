@@ -361,12 +361,8 @@ button:disabled:active {
 
 .card {
   width: 100%;
-  /*
-   * 卡片按内容高度收缩，用 auto margin 在舞台里垂直居中。
-   * 内容超过舞台高度时，auto margin 会自动归零，卡片顶格并由舞台滚动。
-   */
-  flex: 0 0 auto;
-  margin-block: auto;
+  /* 撑满剩余高度：内容少时不留空档，内容多时自然变高并让舞台滚动 */
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   border-radius: var(--radius);
@@ -540,7 +536,7 @@ button:disabled:active {
   margin: 0;
   color: #4a473f;
   font-size: 13px;
-  line-height: 1.9;
+  line-height: 1.8;
   white-space: pre-wrap;
 }
 
