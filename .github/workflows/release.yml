@@ -1,0 +1,87 @@
+name: verify-and-release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  # 所有分支、PR 都要过：语法检查 + 55 个测试 + 静态自检
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 运行自检
+        run: npm run verify
+
+  # 只有 main 分支的 push 才走发布；版本号已有对应 tag 就跳过
+  release:
+    needs: verify
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 需要读到已有 tag
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 读取版本号
+        id: version
+        run: |
+          VERSION=$(node -p "require('./manifest.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "当前版本：$VERSION"
+
+      - name: 检查是否已发布
+        id: check
+        run: |
+          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "v${{ steps.version.outputs.version }} 已存在，跳过发布"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 打包
+        if: steps.check.outputs.exists == 'false'
+        run: node scripts/package.mjs
+
+      - name: 生成更新说明
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          PREV=$(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)
+          git log --pretty=format:'- %s' "$PREV"..HEAD > "$RUNNER_TEMP/notes.md"
+
+      - name: 创建 Release
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # 0.x 标为预发布，避免顶掉「最新版」
+          if [[ "$VERSION" == 0.* ]]; then
+            FLAGS="--prerelease"
+          else
+            FLAGS="--latest"
+          fi
+
+          gh release create "v$VERSION" \
+            "dist/douban-random-picker-$VERSION.zip" \
+            --title "v$VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            $FLAGS
