@@ -50,7 +50,19 @@ async function getState() {
  * 直接渲染会只剩一行副标题。这里读的时候从缓存补，不用迁移存储。
  */
 /** 只补空缺的静态字段：导演、主演等不会因为用户操作而变化 */
-const FILL_FIELDS = ['directors', 'actors', 'genres', 'pubdate', 'subtitle', 'markedOn']
+const FILL_FIELDS = [
+  'directors',
+  'actors',
+  'genres',
+  'pubdate',
+  'subtitle',
+  'markedOn',
+  'author',
+  'translator',
+  'press',
+  'bookPubdate',
+  'pages',
+]
 
 /**
  * 用户可编辑的字段：以缓存为准，直接覆盖。
@@ -168,11 +180,19 @@ async function handleClearHistory() {
   return { ok: true, records: next }
 }
 
-/** 把取到的简介写回记录，避免下次打开或切换页签时重复请求 */
-async function handleSaveIntro(key, intro) {
-  if (!key || !intro) return { ok: false }
+/** 把取到的详情（简介、出版信息）写回记录，避免重复请求 */
+const DETAIL_FIELDS = ['intro', 'author', 'translator', 'press', 'bookPubdate', 'pages']
+
+async function handleSaveDetail(key, patch) {
+  if (!key || !patch) return { ok: false }
+  const clean = {}
+  for (const field of DETAIL_FIELDS) {
+    if (patch[field] != null && patch[field] !== '') clean[field] = patch[field]
+  }
+  if (!Object.keys(clean).length) return { ok: false }
+
   const { records } = await readAll()
-  const next = records.map((r) => (r.key === key ? { ...r, intro } : r))
+  const next = records.map((r) => (r.key === key ? { ...r, ...clean } : r))
   await writeRecords(next)
   return { ok: true }
 }
@@ -232,8 +252,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       )
       return true
 
-    case UI.SAVE_INTRO:
-      handleSaveIntro(message.key, message.intro).then(sendResponse)
+    case UI.SAVE_DETAIL:
+      handleSaveDetail(message.key, message.patch).then(sendResponse)
       return true
 
     case UI.CLEAR_HISTORY:

@@ -16,7 +16,7 @@ export const UI = {
   DETAIL: 'ui:detail',
   SET_UID: 'ui:setUid',
   SET_CATEGORY: 'ui:setCategory',
-  SAVE_INTRO: 'ui:saveIntro',
+  SAVE_DETAIL: 'ui:saveDetail',
   CLEAR_HISTORY: 'ui:clearHistory',
   PROBE_LOGIN: 'ui:probeLogin',
 }

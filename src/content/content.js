@@ -238,11 +238,18 @@
         return { ok: false, status: res.status }
       }
       const json = await res.json()
+      const firstOf = (v) => (Array.isArray(v) ? String(v[0] ?? '') : typeof v === 'string' ? v : '')
       return {
         ok: true,
         intro: typeof json?.intro === 'string' ? json.intro.trim() : '',
         subtitle: typeof json?.card_subtitle === 'string' ? json.card_subtitle : '',
         authorIntro: typeof json?.author_intro === 'string' ? json.author_intro : '',
+        // 图书的出版信息只在详情接口里有
+        author: firstOf(json?.author),
+        translator: firstOf(json?.translator),
+        press: firstOf(json?.press),
+        pubdate: firstOf(json?.pubdate),
+        pages: firstOf(json?.pages),
       }
     } catch (err) {
       log('详情接口异常', err?.message)
