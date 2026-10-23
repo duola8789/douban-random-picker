@@ -35,6 +35,21 @@ npm run icons   # 重新生成扩展图标（不依赖图形库）
 npm run package # 打包成可上传 Chrome Web Store 的 zip
 ```
 
+### 清空调试数据
+
+在侧边栏里右键 → 检查 → Console，然后按需要执行：
+
+```js
+chrome.storage.local.get(null)                    // 看看当前存了什么
+chrome.storage.local.clear().then(() => location.reload())  // 全部清空（含 uid，会重新探测登录）
+chrome.storage.local.set({ caches: {} })          // 只清同步缓存
+chrome.storage.local.set({ records: [] })         // 只清抽取记录
+chrome.storage.local.set({ coverColors: {} })     // 只清封面主色缓存
+```
+
+界面上只有「清空」（只清已处理的记录，保留待看）和「更换账号」（只清 uid），
+调试时用上面的命令更彻底。彻底重来也可以在 `chrome://extensions` 里移除扩展再加载。
+
 `tests/harness/env.js` 是一个假的 `chrome.*` 环境，它让真实的后台脚本与
 content script 能在 Node 里跑完整链路，不依赖浏览器和豆瓣账号。
 
