@@ -14,6 +14,7 @@ export const UI = {
   SKIP: 'ui:skip',
   SYNC: 'ui:sync',
   DETAIL: 'ui:detail',
+  COVER_COLOR: 'ui:coverColor',
   SET_UID: 'ui:setUid',
   SET_CATEGORY: 'ui:setCategory',
   SAVE_DETAIL: 'ui:saveDetail',

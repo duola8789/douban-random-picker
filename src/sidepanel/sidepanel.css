@@ -38,16 +38,21 @@ body {
   position: fixed;
   inset: -60px;
   z-index: -1;
-  background-size: cover;
-  background-position: center;
-  filter: blur(18px) saturate(0.85);
+  /* 用封面主色调做一层极淡的晕染，而不是把海报糊在背景上 */
+  /* 主色调先与纸色混合，深色海报也不会把背景压暗 */
+  background: radial-gradient(
+    120% 70% at 50% 0%,
+    color-mix(in srgb, var(--backdrop-color, #efe6d3) 45%, var(--paper)) 0%,
+    transparent 72%
+  );
+  filter: none;
   opacity: 0;
   transition: opacity 0.6s ease;
   pointer-events: none;
 }
 
 .backdrop.on {
-  opacity: 0.38;
+  opacity: 0.9;
 }
 
 body {
@@ -112,13 +117,23 @@ input:focus-visible {
 }
 
 button:disabled,
-button.is-disabled,
-button:disabled *,
-button.is-disabled *,
-button:disabled:hover,
-button.is-disabled:hover {
+button.is-disabled {
   opacity: 0.4;
-  cursor: not-allowed;
+}
+
+/*
+ * 光标用 !important 钉死：按钮内部的文字、图标都可能被浏览器或其它规则
+ * 重新算成别的光标，这就是之前「在按钮里移动会闪」的原因。
+ */
+button:disabled,
+button:disabled *,
+button:disabled:hover,
+button.is-disabled,
+button.is-disabled *,
+button.is-disabled:hover,
+.pending-actions.is-locked,
+.pending-actions.is-locked * {
+  cursor: not-allowed !important;
 }
 
 button:disabled:active {
@@ -342,6 +357,11 @@ button:disabled:active {
   flex-direction: column;
   gap: 8px;
   overflow-y: auto;
+}
+
+/* 内容超出时底部渐隐，避免卡片被舞台边缘硬切出一条直角 */
+.stage.is-scrollable {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent 100%);
 }
 
 .placeholder {
