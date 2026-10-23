@@ -600,6 +600,10 @@ function cardView(record) {
   const card = document.createElement('article')
   card.className = 'card'
 
+  // 上半部分：左海报、右基本信息（参考豆瓣条目页）
+  const head = document.createElement('div')
+  head.className = 'card-head'
+
   const cover = document.createElement('div')
   cover.className = 'card-cover'
   if (record.coverUrl) {
@@ -613,8 +617,8 @@ function cardView(record) {
     cover.append(noCover(record.category))
   }
 
-  const body = document.createElement('div')
-  body.className = 'card-body'
+  const info = document.createElement('div')
+  info.className = 'card-info'
 
   const title = document.createElement('h2')
   title.className = 'card-title'
@@ -632,14 +636,20 @@ function cardView(record) {
   }
   meta.append(renderTag(sourceTag(record)))
 
-  body.append(title, meta)
+  info.append(title, meta)
 
   if (record.subtitle) {
     const sub = document.createElement('p')
     sub.className = 'subtitle'
     sub.textContent = record.subtitle
-    body.append(sub)
+    info.append(sub)
   }
+
+  head.append(cover, info)
+
+  // 下半部分：简介与我的评分，横跨整张卡片
+  const body = document.createElement('div')
+  body.className = 'card-body'
 
   const introSlot = document.createElement('div')
   introSlot.className = 'intro-wrap'
@@ -667,7 +677,7 @@ function cardView(record) {
     body.append(mine)
   }
 
-  card.append(cover, body)
+  card.append(head, body)
   return { el: card, refs: { introSlot } }
 }
 
