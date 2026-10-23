@@ -200,7 +200,8 @@ async function draw() {
   const res = await send({ type: UI.PICK, category: state.active })
 
   // 本地抽取几乎是瞬时的，补一个最短展示时间，动画才有存在感
-  const minDuration = 420
+  // 与 .rolling img 的动画时长保持一致
+  const minDuration = 1200
   const elapsed = Date.now() - startedAt
   if (elapsed < minDuration) await new Promise((r) => setTimeout(r, minDuration - elapsed))
 
