@@ -484,6 +484,10 @@ button:disabled:active {
   padding: 12px 14px 14px;
 }
 
+.card-body[hidden] {
+  display: none;
+}
+
 .card-title {
   font-family: Georgia, "Songti SC", "Noto Serif SC", serif;
   font-size: 17px;
@@ -554,9 +558,39 @@ button:disabled:active {
 }
 
 .section-label {
-  font-size: 11px;
-  letter-spacing: 0.1em;
+  font-size: 10px;
+  letter-spacing: 0.12em;
   color: var(--muted);
+}
+
+/* 右栏底部的「我的标记」小卡片 */
+.mine-card {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #f7f3e9;
+  border: 1px solid var(--line);
+}
+
+.mine-card .my-rating {
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+
+.mine-card .my-comment {
+  font-size: 12px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.mine-card .marked-on {
+  font-size: 11px;
 }
 
 .marked-on {
