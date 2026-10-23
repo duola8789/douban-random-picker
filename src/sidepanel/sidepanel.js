@@ -630,10 +630,14 @@ function cardView(record) {
     score.textContent = `豆瓣 ${record.doubanRating.toFixed(1)}`
     meta.append(score)
   }
+  // 「来自」与标签收紧成一个词组；标签本身只表达来源值，便于以后扩展
+  const source = document.createElement('span')
+  source.className = 'card-source'
   const from = document.createElement('span')
   from.className = 'from-label'
   from.textContent = '来自'
-  meta.append(from, renderTag(sourceTag(record)))
+  source.append(from, renderTag(sourceTag(record)))
+  meta.append(source)
 
   info.append(title, meta)
 

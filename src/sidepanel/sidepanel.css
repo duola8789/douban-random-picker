@@ -511,6 +511,12 @@ button:disabled:active {
   font-size: 11px;
 }
 
+.card-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .from-label {
   color: var(--muted);
   font-size: 11px;
