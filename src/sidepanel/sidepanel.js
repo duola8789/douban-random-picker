@@ -630,15 +630,6 @@ function cardView(record) {
     score.textContent = `豆瓣 ${record.doubanRating.toFixed(1)}`
     meta.append(score)
   }
-  // 「来自」与标签收紧成一个词组；标签本身只表达来源值，便于以后扩展
-  const source = document.createElement('span')
-  source.className = 'card-source'
-  const from = document.createElement('span')
-  from.className = 'from-label'
-  from.textContent = '来自'
-  source.append(from, renderTag(sourceTag(record)))
-  meta.append(source)
-
   info.append(title, meta)
 
   const rows = infoRows(record)
@@ -672,9 +663,10 @@ function cardView(record) {
 
     const eyebrow = document.createElement('div')
     eyebrow.className = 'my-mark-eyebrow'
-    eyebrow.textContent = record.markedOn
-      ? `我的标记 · ${markLabel(record)}于 ${record.markedOn}`
-      : '我的标记'
+    // 来源和标记时间都是「我」和这部片子的关系，放在一起
+    eyebrow.textContent = [ '我的标记', sourceTag(record).label, record.markedOn ]
+      .filter(Boolean)
+      .join(' · ')
     mine.append(eyebrow)
 
     if (typeof record.myRating === 'number') {
@@ -717,7 +709,10 @@ function infoRows(record) {
   if (record.actors) rows.push(['主演', record.actors])
   if (record.genres) rows.push(['类型', record.genres])
   // 图书的 card_subtitle 已经包含作者 / 出版社 / 年份，不再重复出版日期
-  if (record.pubdate && record.category !== 'book') rows.push(['上映', record.pubdate])
+  if (record.pubdate && record.category !== 'book') {
+    // 剧集说「首播」，电影说「上映」
+    rows.push([record.category === 'tv' ? '首播' : '上映', record.pubdate])
+  }
   return rows
 }
 
