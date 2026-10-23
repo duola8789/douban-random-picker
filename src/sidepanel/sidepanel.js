@@ -89,8 +89,9 @@ async function detectUid() {
   const probe = await send({ type: UI.PROBE_LOGIN })
   const uid = probe?.login?.ok ? probe.login.uid : ''
   if (!uid) {
-    console.warn('[豆瓣随机] 自动识别 uid 失败', probe)
-    state.probeReason = probe?.login?.reason ?? probe?.error?.code ?? 'unknown'
+    const reason = probe?.login?.reason ?? probe?.error?.code ?? 'unknown'
+    console.warn(`[豆瓣随机] 自动识别 uid 失败 reason=${reason}`, probe)
+    state.probeReason = reason
     state.needsSetup = true
     render()
     return
@@ -129,7 +130,8 @@ async function runSync({ force = false, all = false } = {}) {
 }
 
 /** 把错误分成两类：挡住整个舞台的，和只提示一下的 */
-function applyError(error) {
+function applyError(error, scope = '同步') {
+  logFailure(scope, error)
   const notice = noticeFor(error)
   if (!notice) return
 
@@ -137,6 +139,17 @@ function applyError(error) {
   else state.toast = notice.text
 
   if (notice.cooldownMs) setCooldown(notice.cooldownMs)
+}
+
+/**
+ * 结构化地记一条失败日志。
+ * 直接把对象丢给 console 只会显示 [object Object]，排查时等于没有信息，
+ * 所以把 code / reason 拼进消息文本里。
+ */
+function logFailure(scope, error) {
+  const code = error?.code ?? 'NETWORK'
+  const reason = error?.reason ? ` reason=${error.reason}` : ''
+  console.warn(`[豆瓣随机] ${scope}失败 code=${code}${reason}`, error)
 }
 
 async function refreshState() {
@@ -159,7 +172,7 @@ async function draw() {
   state.drawBusy = false
 
   if (!res?.ok) {
-    applyError(res?.error)
+    applyError(res?.error, '抽取')
     render()
     return
   }
@@ -264,7 +277,10 @@ function noticeFor(error) {
         blocking: true,
       }
     default:
-      return { text: '出了点问题，请稍后重试。', blocking: false }
+      return {
+        text: `出了点问题（${code}），请稍后重试。`,
+        blocking: false,
+      }
   }
 }
 
