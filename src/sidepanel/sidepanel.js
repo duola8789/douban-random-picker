@@ -247,7 +247,8 @@ function ensureDetail(record) {
   if (!record || state.detailKey === record.key) return
   state.detailKey = record.key
 
-  const hasDetail = Boolean(record.intro) || (record.category === 'book' && Boolean(record.press))
+  // 用显式标记判断，而不是「有没有简介」：老记录可能拿过简介但没有出版信息
+  const hasDetail = Boolean(record.detailAt)
   if (hasDetail) {
     state.intro = record.intro ?? ''
     state.introLoading = false
@@ -269,7 +270,8 @@ function ensureDetail(record) {
     fillIntro()
 
     const patch = detailPatch(detail)
-    if (!Object.keys(patch).length) return
+    patch.detailAt = Date.now()
+    if (Object.keys(patch).length <= 1) return
 
     const target = state.records.find((r) => r.key === key)
     if (target) {
@@ -420,6 +422,14 @@ function render() {
   renderHistory()
   renderActions()
   updateSyncButton()
+  syncStageScroll()
+}
+
+/** 内容超出舞台时底部渐隐；简介是后填的，所以填完还要再量一次 */
+function syncStageScroll() {
+  requestAnimationFrame(() => {
+    el.stage.classList.toggle('is-scrollable', el.stage.scrollHeight > el.stage.clientHeight + 2)
+  })
 }
 
 function renderActions() {
@@ -437,6 +447,7 @@ function renderActions() {
     // 用 aria-disabled 而不是 disabled：原生禁用态下浏览器会接管光标，样式管不住
     el.skip.classList.toggle('is-disabled', !allowed)
     el.skip.setAttribute('aria-disabled', String(!allowed))
+    el.pendingActions.classList.toggle('is-locked', !allowed)
     el.skip.textContent = allowed ? '不想看它（一天一次）' : '明天再来'
   }
 }
@@ -503,14 +514,25 @@ function renderStage() {
   stage.replaceChildren(placeholderView())
 }
 
+let backdropUrl = null
+
+/** 背景用封面主色调，而不是模糊图：竖版海报在两侧只会剩一块认不出的色斑 */
 function updateBackdrop(url) {
   if (!el.backdrop) return
-  if (url) {
-    el.backdrop.style.backgroundImage = `url("${url}")`
-    el.backdrop.classList.add('on')
-  } else {
+
+  if (!url) {
+    backdropUrl = null
     el.backdrop.classList.remove('on')
+    return
   }
+
+  backdropUrl = url
+  el.backdrop.classList.add('on')
+
+  send({ type: UI.COVER_COLOR, url }).then((res) => {
+    if (backdropUrl !== url) return
+    if (res?.color) document.documentElement.style.setProperty('--backdrop-color', res.color)
+  })
 }
 
 function errorView(notice) {
@@ -769,6 +791,7 @@ function fillInfoInto(slot, record) {
       list.append(k, v)
     }
     slot.append(list)
+    syncStageScroll()
     return
   }
 

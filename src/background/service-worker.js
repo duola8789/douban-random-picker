@@ -181,7 +181,7 @@ async function handleClearHistory() {
 }
 
 /** 把取到的详情（简介、出版信息）写回记录，避免重复请求 */
-const DETAIL_FIELDS = ['intro', 'author', 'translator', 'press', 'bookPubdate', 'pages']
+const DETAIL_FIELDS = ['intro', 'author', 'translator', 'press', 'bookPubdate', 'pages', 'detailAt']
 
 async function handleSaveDetail(key, patch) {
   if (!key || !patch) return { ok: false }
@@ -195,6 +195,80 @@ async function handleSaveDetail(key, patch) {
   const next = records.map((r) => (r.key === key ? { ...r, ...clean } : r))
   await writeRecords(next)
   return { ok: true }
+}
+
+/**
+ * 取封面的主色调，用来铺侧边栏两侧的背景。
+ *
+ * 扩展的 service worker 有 doubanio 的 host 权限，可以直接读跨域图片；
+ * 用 OffscreenCanvas 缩到 24x24 再统计，避免把整张图解码进内存。
+ */
+const COLOR_CACHE_LIMIT = 300
+
+async function coverColor(url) {
+  if (!url) return null
+
+  const { coverColors = {} } = await chrome.storage.local.get('coverColors')
+  if (coverColors[url]) return coverColors[url]
+
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const bitmap = await createImageBitmap(await res.blob())
+
+    const size = 24
+    const canvas = new OffscreenCanvas(size, size)
+    const ctx = canvas.getContext('2d')
+    ctx.drawImage(bitmap, 0, 0, size, size)
+    const { data } = ctx.getImageData(0, 0, size, size)
+    bitmap.close?.()
+
+    // 按 4bit 量化分桶，取出现最多的那一桶的平均值
+    const buckets = new Map()
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i]
+      const g = data[i + 1]
+      const b = data[i + 2]
+      const a = data[i + 3]
+      if (a < 200) continue
+      if (r > 240 && g > 240 && b > 240) continue
+      if (r < 20 && g < 20 && b < 20) continue
+      const key = `${r >> 4},${g >> 4},${b >> 4}`
+      const bucket = buckets.get(key) ?? { n: 0, r: 0, g: 0, b: 0 }
+      bucket.n += 1
+      bucket.r += r
+      bucket.g += g
+      bucket.b += b
+      buckets.set(key, bucket)
+    }
+    if (!buckets.size) return null
+
+    // 只按数量选，容易选中大片深灰；乘上饱和度，偏向真正有颜色的一块
+    let best = null
+    let bestScore = -1
+    for (const bucket of buckets.values()) {
+      const r = bucket.r / bucket.n
+      const g = bucket.g / bucket.n
+      const b = bucket.b / bucket.n
+      const max = Math.max(r, g, b)
+      const min = Math.min(r, g, b)
+      const sat = max === 0 ? 0 : (max - min) / max
+      const score = bucket.n * (0.25 + sat)
+      if (score > bestScore) {
+        bestScore = score
+        best = bucket
+      }
+    }
+    const hex = (v) => Math.round(v / best.n).toString(16).padStart(2, '0')
+    const color = `#${hex(best.r)}${hex(best.g)}${hex(best.b)}`
+
+    const entries = Object.entries({ ...coverColors, [url]: color })
+    const trimmed = entries.slice(-COLOR_CACHE_LIMIT)
+    await chrome.storage.local.set({ coverColors: Object.fromEntries(trimmed) })
+    return color
+  } catch {
+    return null
+  }
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -232,6 +306,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         .catch((err) =>
           sendResponse({ ok: false, error: { code: ERROR.NETWORK, message: String(err) } }),
         )
+      return true
+
+    case UI.COVER_COLOR:
+      coverColor(String(message.url ?? ''))
+        .then((color) => sendResponse({ ok: Boolean(color), color }))
+        .catch(() => sendResponse({ ok: false }))
       return true
 
     case UI.DETAIL:
