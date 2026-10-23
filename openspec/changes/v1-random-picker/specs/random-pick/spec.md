@@ -48,7 +48,11 @@
 
 系统 SHALL 提供跳过操作，把当前待看改判为「跳过」。
 
-每个类别每天 MUST 最多允许跳过 1 次。次数用完后，系统 MUST NOT 再执行跳过，并 SHALL 提示明天再来。
+每个类别每天 MUST 限制跳过次数，默认 2 次（即一天最多抽 3 次），数值由 `src/lib/config.js` 的 `dailySkipLimit` 决定。
+
+次数用完后，系统 MUST NOT 再执行跳过，并 SHALL 提示明天再来。
+
+界面 SHALL 在跳过按钮上显示当前剩余的跳过次数。
 
 跳过 MUST 保留该条记录，MUST NOT 从历史中删除。
 

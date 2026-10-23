@@ -35,8 +35,8 @@ export const CONFIG = {
    */
   minRefreshMs: 10 * 60 * 1000,
 
-  /** 每个类别每天最多跳过几次。 */
-  dailySkipLimit: 1,
+  /** 每个类别每天最多跳过几次（含义是「一天最多抽 N+1 次」）。 */
+  dailySkipLimit: 2,
 
   /** 历史记录保留上限 */
   historyLimit: 500,
