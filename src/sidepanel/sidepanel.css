@@ -511,19 +511,6 @@ button:disabled:active {
   font-size: 11px;
 }
 
-.card-source {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  /* 靠右对齐：把前面剩余的横向空间都吃掉 */
-  margin-left: auto;
-}
-
-.from-label {
-  color: var(--muted);
-  font-size: 11px;
-}
-
 .rating-douban {
   color: #b07d2b;
   font-weight: 600;
