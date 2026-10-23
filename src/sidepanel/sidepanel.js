@@ -649,35 +649,34 @@ function cardView(record) {
     info.append(sub)
   }
 
-  // 我的标记：贴在右栏底部的小卡片
+  // 我的标记：右栏底部的批注块
   const hasMine =
     typeof record.myRating === 'number' || Boolean(record.myComment) || Boolean(record.markedOn)
   if (hasMine) {
     const mine = document.createElement('div')
-    mine.className = 'mine-card'
+    mine.className = 'my-mark'
 
-    const label = document.createElement('div')
-    label.className = 'section-label'
-    label.textContent = '我的标记'
-    mine.append(label)
+    const eyebrow = document.createElement('div')
+    eyebrow.className = 'my-mark-eyebrow'
+    eyebrow.textContent = record.markedOn
+      ? `我的标记 · ${markLabel(record)}于 ${record.markedOn}`
+      : '我的标记'
+    mine.append(eyebrow)
 
     if (typeof record.myRating === 'number') {
       const stars = document.createElement('div')
       stars.className = 'my-rating'
       stars.textContent = '★'.repeat(record.myRating) + '☆'.repeat(Math.max(0, 5 - record.myRating))
+      stars.title = `我的评分 ${record.myRating}`
       mine.append(stars)
     }
+
     if (record.myComment) {
       const comment = document.createElement('p')
       comment.className = 'my-comment'
-      comment.textContent = `「${record.myComment}」`
+      comment.textContent = record.myComment
+      comment.title = record.myComment
       mine.append(comment)
-    }
-    if (record.markedOn) {
-      const when = document.createElement('div')
-      when.className = 'marked-on'
-      when.textContent = `${markLabel(record)}于 ${record.markedOn}`
-      mine.append(when)
     }
 
     info.append(mine)
