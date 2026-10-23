@@ -196,7 +196,14 @@ async function draw() {
   state.toast = null
   render()
 
+  const startedAt = Date.now()
   const res = await send({ type: UI.PICK, category: state.active })
+
+  // 本地抽取几乎是瞬时的，补一个最短展示时间，动画才有存在感
+  const minDuration = 420
+  const elapsed = Date.now() - startedAt
+  if (elapsed < minDuration) await new Promise((r) => setTimeout(r, minDuration - elapsed))
+
   state.drawing = false
 
   if (!res?.ok) {
@@ -482,6 +489,12 @@ function renderStage() {
     return
   }
 
+  if (state.drawing) {
+    cardRefs = null
+    stage.replaceChildren(rollingView())
+    return
+  }
+
   if (pending) {
     const { el: card, refs } = cardView(pending)
     cardRefs = refs
@@ -525,6 +538,21 @@ function updateBackdrop(url) {
     if (backdropUrl !== url) return
     if (res?.color) document.documentElement.style.setProperty('--backdrop-color', res.color)
   })
+}
+
+/** 抽取中的掷骰动画 */
+function rollingView() {
+  const wrap = document.createElement('div')
+  wrap.className = 'rolling'
+
+  const img = document.createElement('img')
+  img.src = '../../icons/icon128.png'
+  img.alt = ''
+  img.width = 64
+  img.height = 64
+  wrap.append(img)
+
+  return wrap
 }
 
 function errorView(notice) {
