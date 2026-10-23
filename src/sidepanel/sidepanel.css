@@ -3,8 +3,10 @@
   --ink: #2b2a26;
   --muted: #8a8578;
   --line: #e4ddcd;
-  --accent: #2f6b4f;
-  --accent-soft: #e6efe8;
+  /* 主色取自豆瓣主站实测色 rgb(0,119,34) */
+  --accent: #007722;
+  --accent-dark: #00601b;
+  --accent-soft: #e9f3ec;
   --warn: #a4482c;
   --radius: 14px;
 }
@@ -145,7 +147,7 @@ button:disabled:active {
 }
 
 .primary:hover:not(:disabled) {
-  background: #275a42;
+  background: var(--accent-dark);
 }
 
 /* ---------------------------------------------------------------- 类别页签 */
@@ -214,19 +216,30 @@ button:disabled:active {
 
 .pending-actions button {
   flex: 1;
-  border-color: var(--line);
-  background: #fffdf8;
-  color: var(--ink);
   font-size: 14px;
 }
 
-.pending-actions button:hover:not(:disabled) {
+/* 主行动：去豆瓣（绿色实心，和「抽一个」同一语义） */
+.pending-actions #open-douban {
+  background: var(--accent);
   border-color: var(--accent);
-  color: var(--accent);
+  color: #fff;
 }
 
+.pending-actions #open-douban:hover:not(:disabled) {
+  background: var(--accent-dark);
+}
+
+/* 次要行动：跳过（中性灰，视觉上弱于主行动） */
 .pending-actions #skip {
+  background: #fffdf8;
+  border-color: var(--line);
   color: var(--muted);
+}
+
+.pending-actions #skip:hover:not(:disabled) {
+  border-color: var(--muted);
+  color: var(--ink);
 }
 
 /* ---------------------------------------------------------------- 标签 */
@@ -348,7 +361,8 @@ button:disabled:active {
 
 .card {
   width: 100%;
-  flex: 0 0 auto;
+  /* 撑满剩余高度：内容少时不留空档，内容多时自然变高并让舞台滚动 */
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   border-radius: var(--radius);
@@ -414,6 +428,7 @@ button:disabled:active {
 }
 
 .card-body {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 9px;
