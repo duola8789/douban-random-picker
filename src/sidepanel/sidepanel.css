@@ -394,8 +394,8 @@ button:disabled:active {
 .card-cover {
   position: relative;
   flex: 0 0 auto;
-  width: 150px;
-  height: 225px;
+  width: 180px;
+  height: 270px;
   border-radius: 6px;
   background: linear-gradient(180deg, #eff3ee 0%, #e6efe8 100%);
   overflow: hidden;
@@ -464,8 +464,16 @@ button:disabled:active {
 
 .no-cover .glyph {
   font-family: Georgia, "Songti SC", serif;
-  font-size: 22px;
+  font-size: 28px;
   opacity: 0.5;
+}
+
+/* 侧边栏被拖窄时退回到小一号，避免信息列被挤没 */
+@media (max-width: 470px) {
+  .card-cover {
+    width: 150px;
+    height: 225px;
+  }
 }
 
 .card-body {
