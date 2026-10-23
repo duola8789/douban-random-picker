@@ -286,11 +286,18 @@ function fillIntro() {
   slot.hidden = false
   if (cardRefs.body) cardRefs.body.hidden = false
 
-  // 完整显示：卡片会撑高，超出时由舞台滚动
-  const p = document.createElement('p')
-  p.className = 'intro'
-  p.textContent = state.intro
-  slot.append(p)
+  // 豆瓣简介用单个换行分段，拆成真正的段落，段间才有间距
+  const paragraphs = state.intro
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  for (const text of paragraphs.length ? paragraphs : [state.intro]) {
+    const p = document.createElement('p')
+    p.className = 'intro'
+    p.textContent = text
+    slot.append(p)
+  }
 }
 
 // ---------------------------------------------------------------- 错误文案

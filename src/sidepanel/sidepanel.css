@@ -529,7 +529,7 @@ button:disabled:active {
 .intro-wrap {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 10px;
 }
 
 .intro {
@@ -537,7 +537,6 @@ button:disabled:active {
   color: #4a473f;
   font-size: 13px;
   line-height: 1.8;
-  white-space: pre-wrap;
 }
 
 .intro-loading {
