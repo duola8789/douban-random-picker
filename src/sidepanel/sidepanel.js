@@ -283,9 +283,9 @@ function fillIntro() {
   }
   slot.hidden = false
 
-  // 超长直接截断，原文去豆瓣看
+  // 完整显示：卡片会撑高，超出时由舞台滚动
   const p = document.createElement('p')
-  p.className = 'intro clamped'
+  p.className = 'intro'
   p.textContent = state.intro
   slot.append(p)
 }

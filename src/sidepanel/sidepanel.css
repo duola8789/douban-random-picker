@@ -394,8 +394,8 @@ button:disabled:active {
 .card-cover {
   position: relative;
   flex: 0 0 auto;
-  width: 110px;
-  height: 165px;
+  width: 150px;
+  height: 225px;
   border-radius: 6px;
   background: linear-gradient(180deg, #eff3ee 0%, #e6efe8 100%);
   overflow: hidden;
@@ -424,10 +424,10 @@ button:disabled:active {
 .info-rows {
   display: grid;
   grid-template-columns: auto 1fr;
-  column-gap: 8px;
-  row-gap: 3px;
+  column-gap: 10px;
+  row-gap: 7px;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 .info-label {
@@ -526,13 +526,6 @@ button:disabled:active {
   font-size: 13px;
   line-height: 1.65;
   white-space: pre-wrap;
-}
-
-.intro.clamped {
-  display: -webkit-box;
-  -webkit-line-clamp: 6;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 .intro-loading {
