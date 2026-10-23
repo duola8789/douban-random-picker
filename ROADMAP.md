@@ -182,6 +182,7 @@ MIT，Node 22 CLI。本项目**没有引入它的任何代码**，只借用了�
 - [x] Chrome Web Store 上架材料（`docs/store-listing.md`）
 - [ ] **上线前把 `src/lib/config.js` 的 `minRefreshMs` 从调试值 60_000 改回 600_000**
 - [ ] 确认 `dailySkipLimit` 为 1（调试期可能调大过）
+- [ ] **把 `src/lib/config.js` 的 `devTools` 改为 false**（关掉帮助面板里的「重置全部数据」）
 - [ ] 在真实 Chrome 里验收，并截图（1280×800 或 640×400）
 - [ ] 商店后台填写「数据使用」表单
 - [ ] 评估风险：豆瓣接口为非公开接口，公开发布会放大被限流与被改的概率

@@ -8,6 +8,7 @@
 import { UI, SW_EVENT } from '../lib/messages.js'
 import { allDimensionKeys, isFresh } from '../lib/cache.js'
 import { pendingFor, canSkip } from '../lib/history.js'
+import { CONFIG } from '../lib/config.js'
 import { CATEGORY_LABEL, CATEGORY_UNIT, sourceTag, stateTag, renderTag } from '../lib/labels.js'
 
 /** 抽取按钮：统一叫「开始吧」，正好接住 slogan 的后半句 */
@@ -37,6 +38,8 @@ const el = {
   toast: $('#toast'),
   help: $('#help'),
   helpPanel: $('#help-panel'),
+  devSection: $('#dev-section'),
+  resetAll: $('#reset-all'),
   confirmPanel: $('#confirm-panel'),
   confirmTitle: $('#confirm-title'),
   confirmText: $('#confirm-text'),
@@ -1040,7 +1043,22 @@ el.confirmOk.addEventListener('click', async () => {
 })
 
 el.help.addEventListener('click', () => {
+  // 开发模式才显示「重置全部数据」
+  el.devSection.hidden = !CONFIG.devTools
   el.helpPanel.hidden = false
+})
+
+el.resetAll.addEventListener('click', () => {
+  el.helpPanel.hidden = true
+  openConfirm({
+    title: '重置全部数据？',
+    text: 'uid、缓存、记录、封面配色都会清空，回到全新安装的状态。',
+    okLabel: '重置',
+    onOk: async () => {
+      await chrome.storage.local.clear()
+      location.reload()
+    },
+  })
 })
 el.helpClose.addEventListener('click', () => {
   el.helpPanel.hidden = true
