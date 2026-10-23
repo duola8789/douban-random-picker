@@ -515,6 +515,8 @@ button:disabled:active {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  /* 靠右对齐：把前面剩余的横向空间都吃掉 */
+  margin-left: auto;
 }
 
 .from-label {
