@@ -45,6 +45,24 @@ body.page {
   background: #f6f1e6;
 }
 
+.record-list .rec.clickable {
+  cursor: pointer;
+}
+
+.record-list .rec.clickable:hover .row-title {
+  color: var(--accent);
+}
+
+.record-list .row-arrow {
+  flex: 0 0 auto;
+  color: var(--line);
+  font-size: 13px;
+}
+
+.record-list .rec:hover .row-arrow {
+  color: var(--accent);
+}
+
 .record-list .rec:last-child {
   border-bottom: none;
 }

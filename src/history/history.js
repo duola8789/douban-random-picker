@@ -41,18 +41,31 @@ function render(records) {
     const row = document.createElement('div')
     row.className = 'rec'
 
+    if (record.url) {
+      row.classList.add('clickable')
+      row.tabIndex = 0
+      row.setAttribute('role', 'link')
+      row.title = '在豆瓣打开'
+      const open = () => chrome.tabs.create({ url: record.url })
+      row.addEventListener('click', open)
+      row.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          open()
+        }
+      })
+    }
+
     const dot = document.createElement('span')
     dot.className = `dot ${record.category}`
 
     const main = document.createElement('div')
     main.className = 'row-main'
 
-    const title = document.createElement('button')
-    title.type = 'button'
+    const title = document.createElement('span')
     title.className = 'row-title'
     title.textContent = record.title
     title.title = record.title
-    if (record.url) title.addEventListener('click', () => chrome.tabs.create({ url: record.url }))
 
     const sub = document.createElement('span')
     sub.className = 'row-sub'
@@ -65,6 +78,12 @@ function render(records) {
     tags.append(renderTag(sourceTag(record)), renderTag(stateTag(record)))
 
     row.append(dot, main, tags)
+    if (record.url) {
+      const arrow = document.createElement('span')
+      arrow.className = 'row-arrow'
+      arrow.textContent = '↗'
+      row.append(arrow)
+    }
     frag.append(row)
   }
 

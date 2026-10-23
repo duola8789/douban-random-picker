@@ -41,6 +41,11 @@ export function makeRecord(item, { state = 'pending', drawnAt = Date.now() } = {
     year: item.year,
     subtitle: item.subtitle,
     doubanRating: item.doubanRating,
+    directors: item.directors,
+    actors: item.actors,
+    genres: item.genres,
+    pubdate: item.pubdate,
+    markedOn: item.markedOn,
     myRating: item.myRating,
     myComment: item.myComment,
     // 这条在豆瓣里的标记状态：mark / doing / done
