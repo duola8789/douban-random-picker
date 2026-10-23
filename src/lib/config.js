@@ -37,6 +37,12 @@ export const CONFIG = {
   /** 每个类别每天最多跳过几次。调试期可以调大。 */
   dailySkipLimit: 1,
 
+  /**
+   * 开发期开关：打开后帮助面板底部出现「重置全部数据」。
+   * 上线前必须改成 false。
+   */
+  devTools: true,
+
   /** 历史记录保留上限 */
   historyLimit: 500,
 
