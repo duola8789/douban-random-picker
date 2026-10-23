@@ -73,6 +73,7 @@ Referer: 任意非空值（必须存在，否则 400）
 - `ROADMAP.md`：v2 的候选来源、待验证接口、兜底路径。
 - `docs/compliance.md`：法律与平台风险说明（不构成法律意见）。
 - `docs/store-listing.md`：Chrome Web Store 上架材料。
+- `docs/promotion.md`：阮一峰周刊与小红书投稿文案。
 - `PRIVACY.md`：隐私政策。
 - `openspec/changes/v1-random-picker/`：v1 的 proposal、design、specs、tasks。
 - `CLAUDE.md`：给 agent 会话的项目上下文。
