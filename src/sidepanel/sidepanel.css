@@ -811,26 +811,33 @@ button:disabled:active {
   gap: 8px;
 }
 
+/*
+ * 不写死 height：.primary 自带 padding: 11px 16px，
+ * 再叠加固定高度会把内容区压到 16px，行高放不下，文字就偏了。
+ * 这里统一让 padding 决定高度，并覆盖 .primary 的 width: 100%。
+ */
 .confirm-actions button {
-  flex: 1;
-  height: 38px;
+  flex: 1 1 0;
+  width: auto;
+  height: auto;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  letter-spacing: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .confirm-actions .ghost {
   background: transparent;
   border-color: var(--line);
   color: var(--muted);
-  font-size: 13px;
 }
 
 .confirm-actions .ghost:hover {
   border-color: var(--muted);
   color: var(--ink);
-}
-
-.confirm-actions .primary {
-  font-size: 14px;
-  letter-spacing: 0.02em;
 }
 
 .help-card {
