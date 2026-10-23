@@ -511,6 +511,11 @@ button:disabled:active {
   font-size: 11px;
 }
 
+.from-label {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .rating-douban {
   color: #b07d2b;
   font-weight: 600;
