@@ -40,14 +40,14 @@ body {
   z-index: -1;
   background-size: cover;
   background-position: center;
-  filter: blur(46px) saturate(0.7) brightness(0.98);
+  filter: blur(18px) saturate(0.85);
   opacity: 0;
   transition: opacity 0.6s ease;
   pointer-events: none;
 }
 
 .backdrop.on {
-  opacity: 0.22;
+  opacity: 0.38;
 }
 
 body {
@@ -111,14 +111,13 @@ input:focus-visible {
   outline-offset: 2px;
 }
 
-button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-/* 禁用态下鼠标在按钮内部的文字上也要保持 not-allowed */
+button:disabled,
+button.is-disabled,
 button:disabled *,
-button:disabled:hover {
+button.is-disabled *,
+button:disabled:hover,
+button.is-disabled:hover {
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
@@ -231,6 +230,7 @@ button:disabled:active {
 .actions {
   /* 高度固定：抽之前、抽之后主体区域高度不变，避免布局跳动 */
   flex: 0 0 auto;
+  margin-block: 10px;
   display: flex;
   flex-direction: column;
   justify-content: stretch;
@@ -249,14 +249,6 @@ button:disabled:active {
   gap: 8px;
 }
 
-/* 跳过不可用时，按钮不再接收指针，光标完全由这一层决定，避免来回跳 */
-.pending-actions:has(#skip:disabled) {
-  cursor: not-allowed;
-}
-
-#skip:disabled {
-  pointer-events: none;
-}
 
 /* 类选择器的 display 会盖掉 [hidden]，必须显式关掉 */
 .pending-actions[hidden],
@@ -628,11 +620,6 @@ button:disabled:active {
   color: var(--muted);
 }
 
-.comment-sig {
-  margin-left: 6px;
-  font-size: 10px;
-  color: #b3aca0;
-}
 
 .my-mark .my-comment {
   margin: 0;

@@ -211,7 +211,8 @@ async function draw() {
   render()
 }
 
-function skip() {
+function skip(event) {
+  if (event?.currentTarget?.getAttribute('aria-disabled') === 'true') return
   const pending = currentPending()
   if (!pending) return
   if (!canSkip(state.records, state.active)) return
@@ -433,7 +434,9 @@ function renderActions() {
   if (pending) {
     const allowed = canSkip(state.records, state.active)
     el.openDouban.disabled = false
-    el.skip.disabled = !allowed
+    // 用 aria-disabled 而不是 disabled：原生禁用态下浏览器会接管光标，样式管不住
+    el.skip.classList.toggle('is-disabled', !allowed)
+    el.skip.setAttribute('aria-disabled', String(!allowed))
     el.skip.textContent = allowed ? '不想看它（一天一次）' : '明天再来'
   }
 }
@@ -707,11 +710,7 @@ function cardView(record) {
     } else {
       // 用户没写评语时放一句自己的话，署名区分来源
       comment.className = 'my-comment is-placeholder'
-      comment.textContent = '少一点选择，多一点开始。'
-      const sig = document.createElement('span')
-      sig.className = 'comment-sig'
-      sig.textContent = '—— 豆瓣随机'
-      comment.append(sig)
+      comment.textContent = '「少一点选择，多一点开始。」'
     }
     mine.append(comment)
 
