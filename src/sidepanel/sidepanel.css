@@ -22,14 +22,14 @@ body {
   height: 100%;
 }
 
-/* 侧边栏拉宽时不要一张卡片横跨整屏：内容收在 560px 内居中 */
+/* 侧边栏拉宽时不要一张卡片横跨整屏：内容收在 620px 内居中 */
 html {
   background: var(--paper);
 }
 
 body {
   background: transparent;
-  max-width: 560px;
+  max-width: 620px;
   margin-inline: auto;
 }
 
@@ -42,7 +42,7 @@ body {
   /* 主色调先与纸色混合，深色海报也不会把背景压暗 */
   background: radial-gradient(
     120% 70% at 50% 0%,
-    color-mix(in srgb, var(--backdrop-color, #efe6d3) 45%, var(--paper)) 0%,
+    color-mix(in srgb, var(--backdrop-color, #efe6d3) 55%, var(--paper)) 0%,
     transparent 72%
   );
   filter: none;
@@ -97,7 +97,6 @@ h3 {
 
 button {
   font: inherit;
-  cursor: pointer;
   border-radius: 999px;
   border: 1px solid transparent;
   padding: 6px 14px;
@@ -121,20 +120,6 @@ button.is-disabled {
   opacity: 0.4;
 }
 
-/*
- * 光标用 !important 钉死：按钮内部的文字、图标都可能被浏览器或其它规则
- * 重新算成别的光标，这就是之前「在按钮里移动会闪」的原因。
- */
-button:disabled,
-button:disabled *,
-button:disabled:hover,
-button.is-disabled,
-button.is-disabled *,
-button.is-disabled:hover,
-.pending-actions.is-locked,
-.pending-actions.is-locked * {
-  cursor: not-allowed !important;
-}
 
 button:disabled:active {
   transform: none;
@@ -356,13 +341,9 @@ button:disabled:active {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
-/* 内容超出时底部渐隐，避免卡片被舞台边缘硬切出一条直角 */
-.stage.is-scrollable {
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent 100%);
-}
 
 .placeholder {
   flex: 1;
@@ -423,8 +404,13 @@ button:disabled:active {
 
 .card {
   width: 100%;
-  /* 撑满剩余高度：内容少时不留空档，内容多时自然变高并让舞台滚动 */
+  /*
+   * 撑满剩余高度，但不超过舞台：内容超出时由卡片内部滚动，
+   * 这样卡片底部的圆角永远在舞台内，不会被裁掉。
+   */
   flex: 1 0 auto;
+  max-height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   border-radius: var(--radius);
@@ -448,6 +434,7 @@ button:disabled:active {
 
 /* 上半部分：左海报右信息，和豆瓣条目页一致 */
 .card-head {
+  flex: 0 0 auto;
   display: flex;
   gap: 12px;
   /* 下半部分是简介，这里留 16px 作为两段之间的呼吸 */
@@ -546,6 +533,8 @@ button:disabled:active {
 
 .card-body {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 9px;
@@ -728,10 +717,6 @@ button:disabled:active {
 
 .history-list li:hover {
   background: #f4efe3;
-}
-
-.history-list li.clickable {
-  cursor: pointer;
 }
 
 .history-list li.clickable:hover .row-title {

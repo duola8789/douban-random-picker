@@ -422,14 +422,6 @@ function render() {
   renderHistory()
   renderActions()
   updateSyncButton()
-  syncStageScroll()
-}
-
-/** 内容超出舞台时底部渐隐；简介是后填的，所以填完还要再量一次 */
-function syncStageScroll() {
-  requestAnimationFrame(() => {
-    el.stage.classList.toggle('is-scrollable', el.stage.scrollHeight > el.stage.clientHeight + 2)
-  })
 }
 
 function renderActions() {
@@ -791,7 +783,6 @@ function fillInfoInto(slot, record) {
       list.append(k, v)
     }
     slot.append(list)
-    syncStageScroll()
     return
   }
 
