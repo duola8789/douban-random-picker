@@ -32,7 +32,7 @@ npm run check   # 语法检查
 node scripts/verify.mjs   # 静态自检：manifest 引用、权限、import、禁用 API
 npm run verify  # 上面三件事一起跑
 npm run icons   # 重新生成扩展图标（不依赖图形库）
-npm run package # 打包成可上传 Chrome Web Store 的 zip
+npm run package # 打包成可上传 Chrome Web Store 的 zip（自动换成生产配置、剔除开发代码）
 ```
 
 ### 清空调试数据

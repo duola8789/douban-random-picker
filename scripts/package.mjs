@@ -32,6 +32,46 @@ for (const entry of INCLUDE) {
   fs.cpSync(from, path.join(stageDir, entry), { recursive: true })
 }
 
+/*
+ * 换成生产配置：本地开发用 src/lib/config.js（1 分钟冷却、开发面板），
+ * 生产包用 src/lib/config.prod.js（10 分钟冷却），然后把源文件删掉。
+ */
+const prodConfigPath = path.join(root, 'src/lib/config.prod.js')
+const stagedConfigPath = path.join(stageDir, 'src/lib/config.js')
+fs.copyFileSync(prodConfigPath, stagedConfigPath)
+fs.rmSync(path.join(stageDir, 'src/lib/config.prod.js'))
+
+/** 删掉标记为 dev-only 的区块（行首到 end 标记行） */
+function stripDevOnly(file) {
+  const lines = fs.readFileSync(file, 'utf8').split('\n')
+  const out = []
+  let inside = false
+  for (const line of lines) {
+    if (line.includes('dev-only:start')) {
+      inside = true
+      continue
+    }
+    if (line.includes('dev-only:end')) {
+      inside = false
+      continue
+    }
+    if (!inside) out.push(line)
+  }
+  fs.writeFileSync(file, out.join('\n'))
+}
+
+function walkFiles(dir) {
+  const out = []
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) out.push(...walkFiles(full))
+    else if (/\.(js|html|css)$/.test(entry.name)) out.push(full)
+  }
+  return out
+}
+
+for (const file of walkFiles(stageDir)) stripDevOnly(file)
+
 fs.rmSync(outFile, { force: true })
 execFileSync('zip', ['-r', '-q', outFile, ...INCLUDE], { cwd: stageDir })
 
