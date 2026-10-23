@@ -388,7 +388,8 @@ button:disabled:active {
 .card-head {
   display: flex;
   gap: 12px;
-  padding: 14px;
+  /* 下半部分是简介，这里留 16px 作为两段之间的呼吸 */
+  padding: 14px 14px 16px;
 }
 
 .card-cover {
@@ -481,9 +482,7 @@ button:disabled:active {
   display: flex;
   flex-direction: column;
   gap: 9px;
-  /* 整块铺一层暖灰，用色块而不是线条把简介与上半部分分开 */
-  padding: 16px 14px 16px;
-  background: #f5efe1;
+  padding: 0 14px 14px;
 }
 
 .card-body[hidden] {
