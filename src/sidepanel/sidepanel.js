@@ -8,6 +8,7 @@
 import { UI, SW_EVENT } from '../lib/messages.js'
 import { allDimensionKeys, isFresh } from '../lib/cache.js'
 import { pendingFor, canSkip } from '../lib/history.js'
+import { CATEGORY_LABEL, CATEGORY_UNIT, sourceTag, stateTag, renderTag } from '../lib/labels.js'
 
 const $ = (sel) => document.querySelector(sel)
 
@@ -15,6 +16,9 @@ const el = {
   stage: $('#stage'),
   draw: $('#draw'),
   actions: $('#actions'),
+  pendingActions: $('#pending-actions'),
+  openDouban: $('#open-douban'),
+  skip: $('#skip'),
   sync: $('#sync'),
   tabs: [...document.querySelectorAll('.tab')],
   historyList: $('#history-list'),
@@ -26,9 +30,6 @@ const el = {
   helpPanel: $('#help-panel'),
   helpClose: $('#help-close'),
 }
-
-const CATEGORY_LABEL = { movie: '电影', tv: '剧集', book: '图书' }
-const CATEGORY_UNIT = { movie: '部电影', tv: '部剧集', book: '本书' }
 
 const state = {
   settings: null,
@@ -53,6 +54,12 @@ let cardRefs = null
 let cooldownTimer = null
 let skipArmed = false
 let skipTimer = null
+
+/** 侧边栏只展示最近几条，完整列表在独立页面 */
+const RECENT_IN_PANEL = 3
+
+/** 记录没变化时跳过重建，避免切页签时整列闪一下 */
+let historySignature = null
 
 const LOGIN_URL = 'https://www.douban.com/'
 
@@ -197,6 +204,7 @@ async function draw() {
 async function skip() {
   const pending = currentPending()
   if (!pending) return
+  if (!canSkip(state.records, state.active)) return
 
   if (!skipArmed) {
     skipArmed = true
@@ -221,19 +229,41 @@ async function skip() {
   render()
 }
 
-/** 抽中后补简介：收藏接口不返回 intro，要单独请求一次详情 */
+/**
+ * 补简介。
+ *
+ * 简介不在收藏接口里，只能单独请求详情。取到之后写回记录并保存在本地，
+ * 所以切换页签、关掉侧边栏再打开都不会重复请求。
+ */
 function ensureIntro(record) {
   if (!record || state.introKey === record.key) return
   state.introKey = record.key
+  state.introExpanded = false
+
+  if (record.intro) {
+    state.intro = record.intro
+    state.introLoading = false
+    fillIntro()
+    return
+  }
+
   state.intro = ''
   state.introLoading = true
   fillIntro()
 
+  const key = record.key
   send({ type: UI.DETAIL, subjectId: record.subjectId, category: record.category }).then((res) => {
-    if (state.introKey !== record.key) return
+    if (state.introKey !== key) return
+    const text = res?.detail?.intro?.trim?.() ?? ''
     state.introLoading = false
-    state.intro = res?.detail?.intro?.trim?.() ?? ''
+    state.intro = text
     fillIntro()
+
+    if (text) {
+      const target = state.records.find((r) => r.key === key)
+      if (target) target.intro = text
+      send({ type: UI.SAVE_INTRO, key, intro: text })
+    }
   })
 }
 
@@ -362,13 +392,26 @@ function render() {
   renderTabs()
   renderStage()
   renderHistory()
-
-  const canDraw = !currentPending() && !state.needsSetup && !state.blocking && !state.syncing
-  el.actions.hidden = !canDraw
-  el.viewAll.hidden = state.records.length === 0
-  el.draw.disabled = state.drawing
-  el.draw.textContent = '抽一个'
+  renderActions()
   updateSyncButton()
+}
+
+function renderActions() {
+  const pending = currentPending()
+  el.draw.hidden = Boolean(pending)
+  el.pendingActions.hidden = !pending
+
+  el.draw.disabled =
+    state.syncing || state.drawing || state.needsSetup || Boolean(state.blocking)
+  el.draw.textContent = '抽一个'
+
+  if (pending) {
+    const allowed = canSkip(state.records, state.active)
+    el.openDouban.disabled = false
+    el.skip.disabled = !allowed
+    el.skip.textContent = allowed ? (skipArmed ? '确认跳过？' : '跳过') : '今天已跳过'
+    el.skip.title = allowed ? '今天还剩 1 次' : '今天已经跳过 1 次了，明天再来'
+  }
 }
 
 function renderToast() {
@@ -412,25 +455,10 @@ function renderStage() {
   if (pending) {
     const { el: card, refs } = cardView(pending)
     cardRefs = refs
-    const row = document.createElement('div')
-    row.className = 'skip-row'
-
-    if (canSkip(state.records, state.active)) {
-      const btn = document.createElement('button')
-      btn.type = 'button'
-      btn.className = 'link'
-      btn.textContent = skipArmed ? '确认跳过这一部？' : '不想看？跳过这一部（今天还剩 1 次）'
-      btn.addEventListener('click', skip)
-      row.append(btn)
-    } else {
-      const note = document.createElement('span')
-      note.className = 'skip-note'
-      note.textContent = '今天已经跳过 1 次了，明天再来。'
-      row.append(note)
-    }
-
-    stage.replaceChildren(card, row)
-    ensureIntro(pending)
+    stage.replaceChildren(card)
+    // 卡片是新建的，简介总要重新铺一次；但只有没缓存时才发请求
+    if (state.introKey === pending.key) fillIntro()
+    else ensureIntro(pending)
     return
   }
 
@@ -594,10 +622,7 @@ function cardView(record) {
 
   const meta = document.createElement('div')
   meta.className = 'card-meta'
-  const pill = document.createElement('span')
-  pill.className = 'pill'
-  pill.textContent = CATEGORY_LABEL[record.category] ?? '条目'
-  meta.append(pill)
+  meta.append(renderTag({ label: CATEGORY_LABEL[record.category] ?? '条目', tone: 'category' }))
   if (record.year) meta.append(tag(record.year))
   if (typeof record.doubanRating === 'number') {
     const score = document.createElement('span')
@@ -605,6 +630,7 @@ function cardView(record) {
     score.textContent = `豆瓣 ${record.doubanRating.toFixed(1)}`
     meta.append(score)
   }
+  meta.append(renderTag(sourceTag(record)))
 
   body.append(title, meta)
 
@@ -641,44 +667,8 @@ function cardView(record) {
     body.append(mine)
   }
 
-  const foot = document.createElement('div')
-  foot.className = 'card-foot'
-  const source = document.createElement('span')
-  source.className = 'source'
-  source.textContent = `来自「${markLabel(record)}」`
-  const open = document.createElement('button')
-  open.type = 'button'
-  open.textContent = '去豆瓣看看'
-  open.addEventListener('click', () => chrome.tabs.create({ url: record.url }))
-  foot.append(source, open)
-  body.append(foot)
-
   card.append(cover, body)
   return { el: card, refs: { introSlot } }
-}
-
-function markLabel(record) {
-  const book = record.category === 'book'
-  switch (record.markStatus) {
-    case 'doing':
-      return book ? '在读' : '在看'
-    case 'done':
-      return book ? '读过' : '看过'
-    default:
-      return book ? '想读' : '想看'
-  }
-}
-
-function stateLabel(record) {
-  const book = record.category === 'book'
-  switch (record.state) {
-    case 'done':
-      return book ? '读过' : '看过'
-    case 'skipped':
-      return '跳过'
-    default:
-      return book ? '待读' : '待看'
-  }
 }
 
 function noCover(category) {
@@ -700,12 +690,6 @@ function tag(text) {
 }
 
 // ---------------------------------------------------------------- 记录
-
-/** 侧边栏只展示最近几条，完整列表在独立页面 */
-const RECENT_IN_PANEL = 3
-
-/** 记录没变化时跳过重建，避免切页签时整列闪一下 */
-let historySignature = null
 
 function renderHistory() {
   const rows = state.records.slice(-RECENT_IN_PANEL).reverse()
@@ -747,11 +731,11 @@ function renderHistory() {
 
     main.append(title, sub)
 
-    const chip = document.createElement('span')
-    chip.className = `state state-${record.state}`
-    chip.textContent = stateLabel(record)
+    const tags = document.createElement('span')
+    tags.className = 'tag-row'
+    tags.append(renderTag(sourceTag(record)), renderTag(stateTag(record)))
 
-    li.append(dot, main, chip)
+    li.append(dot, main, tags)
     list.append(li)
   }
 }
@@ -774,9 +758,6 @@ for (const tab of el.tabs) {
   tab.addEventListener('click', async () => {
     if (tab.dataset.cat === state.active) return
     state.active = tab.dataset.cat
-    state.introKey = null
-    state.intro = ''
-    state.introExpanded = false
     state.blocking = null
     state.toast = null
     skipArmed = false
@@ -787,6 +768,12 @@ for (const tab of el.tabs) {
 
 el.draw.addEventListener('click', draw)
 el.sync.addEventListener('click', () => runSync({ force: true }))
+el.skip.addEventListener('click', skip)
+
+el.openDouban.addEventListener('click', () => {
+  const pending = currentPending()
+  if (pending?.url) chrome.tabs.create({ url: pending.url })
+})
 
 el.viewAll.addEventListener('click', () => {
   chrome.tabs.create({ url: chrome.runtime.getURL('src/history/index.html') })
@@ -804,21 +791,22 @@ el.resetAccount.addEventListener('click', async () => {
   render()
 })
 
-let clearArmed2 = false
+let clearArmed = false
 el.clearHistory.addEventListener('click', async () => {
-  if (!clearArmed2) {
-    clearArmed2 = true
+  if (!clearArmed) {
+    clearArmed = true
     el.clearHistory.textContent = '确认清空？'
     setTimeout(() => {
-      clearArmed2 = false
+      clearArmed = false
       el.clearHistory.textContent = '清空'
     }, 3000)
     return
   }
-  clearArmed2 = false
+  clearArmed = false
   el.clearHistory.textContent = '清空'
   const res = await send({ type: UI.CLEAR_HISTORY })
   if (res?.ok) state.records = res.records ?? []
+  historySignature = null
   render()
 })
 
@@ -844,6 +832,7 @@ async function runNoticeAction(kind) {
     const res = await send({ type: UI.CLEAR_HISTORY })
     if (res?.ok) state.records = res.records ?? []
     state.blocking = null
+    historySignature = null
     render()
   }
 }
@@ -853,7 +842,7 @@ chrome.runtime.onMessage.addListener((message) => {
     state.progress = { fetched: message.fetched ?? 0, total: message.total ?? 0 }
     state.syncing = true
     if (!currentPending() && !state.blocking) renderStage()
-    el.actions.hidden = true
+    el.draw.disabled = true
     el.sync.disabled = true
     return
   }

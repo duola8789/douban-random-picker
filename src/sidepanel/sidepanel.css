@@ -185,24 +185,98 @@ button:disabled:active {
   font-weight: 400;
 }
 
+.actions {
+  /* 高度固定：抽之前、抽之后主体区域高度不变，避免布局跳动 */
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: stretch;
+}
+
 .actions[hidden] {
   display: none;
 }
 
-.skip-row {
+.actions button {
+  height: 44px;
+}
+
+.pending-actions {
   display: flex;
-  justify-content: center;
-  padding-top: 2px;
+  gap: 8px;
 }
 
-.skip-row .link {
-  font-size: 12px;
+/* 类选择器的 display 会盖掉 [hidden]，必须显式关掉 */
+.pending-actions[hidden],
+.actions button[hidden] {
+  display: none;
 }
 
-.skip-note {
+.pending-actions button {
+  flex: 1;
+  border-color: var(--line);
+  background: #fffdf8;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.pending-actions button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pending-actions #skip {
   color: var(--muted);
-  font-size: 12px;
 }
+
+/* ---------------------------------------------------------------- 标签 */
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.tag-category {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.tag-want {
+  background: #f6ecd8;
+  color: #8a6420;
+}
+
+.tag-doing {
+  background: #e4edf7;
+  color: #3f6591;
+}
+
+.tag-done {
+  background: #e6f0e4;
+  color: #4d7a52;
+}
+
+.tag-skipped {
+  background: #f0ece2;
+  color: var(--muted);
+}
+
+.tag-pending {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.tag-row {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
 
 /* ---------------------------------------------------------------- 舞台 */
 
@@ -441,30 +515,6 @@ button:disabled:active {
   white-space: pre-wrap;
 }
 
-.card-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.source {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.card-foot button {
-  border-color: var(--line);
-  background: transparent;
-  color: var(--ink);
-  font-size: 13px;
-  padding: 6px 12px;
-}
-
-.card-foot button:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
 
 /* ---------------------------------------------------------------- 历史 */
 
@@ -499,6 +549,8 @@ button:disabled:active {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  /* 固定成 3 行的高度：记录从 0 条变 1 条时，上方主体区域不跳动 */
+  height: 140px;
   overflow-y: auto;
 }
 
@@ -576,28 +628,6 @@ button:disabled:active {
   font-size: 11px;
 }
 
-.state {
-  flex: 0 0 auto;
-  font-size: 11px;
-  padding: 1px 7px;
-  border-radius: 999px;
-  margin-top: 2px;
-}
-
-.state-pending {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.state-skipped {
-  background: #f0ece2;
-  color: var(--muted);
-}
-
-.state-done {
-  background: #e8f0e6;
-  color: #4d7a52;
-}
 
 .empty-line {
   color: var(--muted);

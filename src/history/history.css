@@ -57,8 +57,8 @@ body.page {
   font-size: 12px;
 }
 
-.record-list .state {
-  margin-top: 0;
+.record-list .tag-row {
+  flex: 0 0 auto;
 }
 
 .empty-line {

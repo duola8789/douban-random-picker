@@ -128,6 +128,15 @@ async function handleClearHistory() {
   return { ok: true, records: next }
 }
 
+/** 把取到的简介写回记录，避免下次打开或切换页签时重复请求 */
+async function handleSaveIntro(key, intro) {
+  if (!key || !intro) return { ok: false }
+  const { records } = await readAll()
+  const next = records.map((r) => (r.key === key ? { ...r, intro } : r))
+  await writeRecords(next)
+  return { ok: true }
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || typeof message.type !== 'string') return
 
@@ -181,6 +190,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       writeSettings({ category: message.category }).then((settings) =>
         sendResponse({ ok: true, settings }),
       )
+      return true
+
+    case UI.SAVE_INTRO:
+      handleSaveIntro(message.key, message.intro).then(sendResponse)
       return true
 
     case UI.CLEAR_HISTORY:
