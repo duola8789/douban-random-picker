@@ -76,6 +76,13 @@ button:active:not(:disabled) {
   transform: scale(0.97);
 }
 
+/* 键盘焦点用主色描边，而不是浏览器默认的蓝色 */
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -774,6 +781,56 @@ button:disabled:active {
 
 .overlay[hidden] {
   display: none;
+}
+
+.confirm-card {
+  width: 100%;
+  max-width: 320px;
+  background: var(--paper);
+  border-radius: var(--radius);
+  padding: 18px;
+  box-shadow: 0 12px 32px rgba(43, 42, 38, 0.22);
+  animation: cardIn 200ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+.confirm-card h2 {
+  font-family: Georgia, "Songti SC", "Noto Serif SC", serif;
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+
+.confirm-card p {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.confirm-actions button {
+  flex: 1;
+  height: 38px;
+}
+
+.confirm-actions .ghost {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.confirm-actions .ghost:hover {
+  border-color: var(--muted);
+  color: var(--ink);
+}
+
+.confirm-actions .primary {
+  font-size: 14px;
+  letter-spacing: 0.02em;
 }
 
 .help-card {
