@@ -5,8 +5,9 @@ Chrome MV3 扩展：从个人豆瓣收藏（电影 / 剧集 / 图书）中随机
 
 ## 当前阶段
 
-v1 已实现，等待真机验收（`openspec/changes/v1-random-picker/tasks.md` 7.1）。
-改动前先看 `openspec/changes/v1-random-picker/design.md`，那里有 12 条已定的技术决策。
+v1 已实现并在真实 Chrome 中验收，change 已归档为
+`openspec/changes/archive/2026-10-23-v1-random-picker/`（含设计与 13 条技术决策）。
+行为契约在 `openspec/specs/` 下的四个能力里，改行为前先读对应的 spec。
 
 ## 文案气质
 
@@ -95,4 +96,5 @@ npm run verify   # 语法检查 + 单测 + 静态自检
 
 - `README.md`：项目概览、安装、架构说明。
 - `ROADMAP.md`：v2 候选来源、待验证的豆列接口、兜底路径。
-- `openspec/changes/v1-random-picker/`：v1 的 proposal / design / specs / tasks。
+- `openspec/specs/`：四个能力的行为契约（douban-session / interest-sync / random-pick / draw-history）。
+- `openspec/changes/archive/2026-10-23-v1-random-picker/`：v1 的 proposal / design / tasks 存档。

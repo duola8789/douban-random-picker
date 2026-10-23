@@ -97,7 +97,8 @@ Referer: 任意非空值（必须存在，否则 400）
 - `docs/store-listing.md`：Chrome Web Store 上架材料。
 - `docs/promotion.md`：阮一峰周刊与小红书投稿文案。
 - `PRIVACY.md`：隐私政策。
-- `openspec/changes/v1-random-picker/`：v1 的 proposal、design、specs、tasks。
+- `openspec/specs/`：四个能力的行为契约。
+- `openspec/changes/archive/`：已归档的 change（含 v1 的设计与任务记录）。
 - `CLAUDE.md`：给 agent 会话的项目上下文。
 
 ## 许可证

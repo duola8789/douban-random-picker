@@ -1,12 +1,16 @@
-## Purpose
+# douban-session Specification
 
+## Purpose
 复用用户浏览器中已有的豆瓣登录态，让扩展能够读取本人标记的收藏，并在登录失效时给出明确、可操作的提示，同时不索取、不存储任何凭证。
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: 通过页面上下文复用登录态
 
-The system SHALL 在 `*.douban.com` 页面的上下文内发起所有豆瓣数据请求，使浏览器自动携带同站凭证。
+The system SHALL 在 `*.douban.com` 页面的上下文内发起**需要登录态**的豆瓣数据请求（收藏列表、登录探测），使浏览器自动携带同站凭证。
+
+不需要登录态的公开数据（条目详情）MAY 直接从扩展发出：此时由 `declarativeNetRequest` 补上 `Referer`，
+并由 host 权限允许读取跨域响应；直连失败时 SHALL 退回页面上下文重试。
 
 The system MUST NOT 读取、缓存、记录或重新拼装任何 cookie 值，MUST NOT 模拟登录表单，MUST NOT 处理用户的账号密码。
 
