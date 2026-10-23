@@ -86,21 +86,25 @@ test('recentFirst 由新到旧', () => {
   )
 })
 
-test('每天每类只能跳过 1 次', () => {
+test('每天每类的跳过额度按 DAILY_SKIP_LIMIT 计算', () => {
   const now = new Date(2026, 9, 23, 15, 0, 0).getTime()
   const skippedToday = {
     ...makeRecord(item({ key: 'movie:1' })),
     state: 'skipped',
     resolvedAt: now - 60_000,
   }
-  const records = [skippedToday]
 
-  assert.equal(skipsToday(records, 'movie', now), 1)
-  assert.equal(skipsLeft(records, 'movie', now), 0)
-  assert.equal(canSkip(records, 'movie', now), false)
+  assert.equal(skipsToday([skippedToday], 'movie', now), 1)
+  assert.equal(skipsLeft([skippedToday], 'movie', now), DAILY_SKIP_LIMIT - 1)
+
+  const useAllUp = Array.from({ length: DAILY_SKIP_LIMIT }, (_, i) => ({
+    ...skippedToday,
+    key: `movie:${i}`,
+  }))
+  assert.equal(canSkip(useAllUp, 'movie', now), false, '用完之后不能再跳')
 
   // 别的类别不受影响
-  assert.equal(canSkip(records, 'tv', now), true)
+  assert.equal(canSkip(useAllUp, 'tv', now), true)
 
   // 昨天跳过的次数不算
   const yesterday = { ...skippedToday, resolvedAt: now - 24 * 60 * 60 * 1000 }
@@ -115,8 +119,8 @@ test('同一天判定按本地时区', () => {
   assert.equal(sameLocalDay(night, nextDay), false)
 })
 
-test('默认上限为 1', () => {
-  assert.equal(DAILY_SKIP_LIMIT, 1)
+test('默认额度是每天每类 2 次', () => {
+  assert.equal(DAILY_SKIP_LIMIT, 2)
 })
 
 test('缓存新鲜度按 24h 判定', () => {

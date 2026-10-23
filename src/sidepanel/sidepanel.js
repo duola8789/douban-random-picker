@@ -7,7 +7,7 @@
 
 import { UI, SW_EVENT } from '../lib/messages.js'
 import { allDimensionKeys, isFresh } from '../lib/cache.js'
-import { pendingFor, canSkip } from '../lib/history.js'
+import { pendingFor, canSkip, skipsLeft } from '../lib/history.js'
 import { CATEGORY_LABEL, CATEGORY_UNIT, sourceTag, stateTag, renderTag } from '../lib/labels.js'
 
 /** 抽取按钮：统一叫「开始吧」，正好接住 slogan 的后半句 */
@@ -251,22 +251,28 @@ function skip(event) {
 
   openConfirm({
     title: '不想看它？',
-    text: `今天只能拒一次「${CATEGORY_LABEL[state.active] ?? '条目'}」。`,
-    okLabel: '不想看它',
+    text: `今天只能给你一次重新选「${CATEGORY_LABEL[state.active] ?? '条目'}」的机会哦`,
+    okLabel: '真不想看',
     onOk: () => doSkip(pending.key),
   })
 }
 
 async function doSkip(key) {
   const res = await send({ type: UI.SKIP, key })
-  if (res?.ok) {
-    state.records = res.records ?? state.records
-    state.detailKey = null
-    state.intro = ''
-  } else if (res?.error) {
-    applyError(res.error, '跳过')
+  if (!res?.ok) {
+    if (res?.error) applyError(res.error, '跳过')
+    render()
+    return
   }
+
+  state.records = res.records ?? state.records
+  state.detailKey = null
+  state.intro = ''
   render()
+
+  // 跳过的目的就是再挑一部。额度已经用完一次，这里直接续抽；
+  // 若这一类的候选也空了，draw() 会给出对应的提示。
+  await draw()
 }
 
 /**
@@ -395,7 +401,7 @@ function noticeFor(error) {
       return { text: '这一部还没了结。看完它，或者点「不想看它」。', blocking: false }
     case 'SKIP_LIMIT':
       return {
-        text: `今天已经拒过「${CATEGORY_LABEL[state.active] ?? '条目'}」了，明天再来。`,
+        text: `今天已经把「${CATEGORY_LABEL[state.active] ?? '条目'}」的额度用完了，明天再来。`,
         blocking: false,
       }
     case 'NO_CANDIDATES':
@@ -488,7 +494,8 @@ function renderActions() {
     el.skip.classList.toggle('is-disabled', !allowed)
     el.skip.setAttribute('aria-disabled', String(!allowed))
     el.pendingActions.classList.toggle('is-locked', !allowed)
-    el.skip.textContent = allowed ? '不想看它（一天一次）' : '今天就它了'
+    const left = skipsLeft(state.records, state.active)
+    el.skip.textContent = allowed ? `不想看它（还剩 ${left} 次）` : '今天就它了'
   }
 }
 
