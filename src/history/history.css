@@ -1,0 +1,68 @@
+/* 独立记录页：复用侧边栏的配色与基础样式，这里只覆盖布局 */
+
+body.page {
+  display: block;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 26px 26px 48px;
+  height: auto;
+  min-height: 100%;
+}
+
+.page-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.page-head h1 {
+  font-family: Georgia, "Songti SC", "Noto Serif SC", serif;
+  font-size: 20px;
+  letter-spacing: 0.02em;
+}
+
+.page-hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.record-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.record-list .rec {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--line);
+  animation: fadeIn 200ms ease;
+}
+
+.record-list .rec:hover {
+  background: #f6f1e6;
+}
+
+.record-list .rec:last-child {
+  border-bottom: none;
+}
+
+.record-list .row-title {
+  font-size: 14px;
+}
+
+.record-list .row-sub {
+  font-size: 12px;
+}
+
+.record-list .state {
+  margin-top: 0;
+}
+
+.empty-line {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 12px 8px;
+}

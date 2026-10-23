@@ -19,6 +19,7 @@ const el = {
   tabs: [...document.querySelectorAll('.tab')],
   historyList: $('#history-list'),
   clearHistory: $('#clear-history'),
+  viewAll: $('#view-all'),
   resetAccount: $('#reset-account'),
   toast: $('#toast'),
   help: $('#help'),
@@ -364,6 +365,7 @@ function render() {
 
   const canDraw = !currentPending() && !state.needsSetup && !state.blocking && !state.syncing
   el.actions.hidden = !canDraw
+  el.viewAll.hidden = state.records.length === 0
   el.draw.disabled = state.drawing
   el.draw.textContent = '抽一个'
   updateSyncButton()
@@ -699,12 +701,21 @@ function tag(text) {
 
 // ---------------------------------------------------------------- 记录
 
+/** 侧边栏只展示最近几条，完整列表在独立页面 */
+const RECENT_IN_PANEL = 3
+
+/** 记录没变化时跳过重建，避免切页签时整列闪一下 */
+let historySignature = null
+
 function renderHistory() {
+  const rows = state.records.slice(-RECENT_IN_PANEL).reverse()
+  const signature = rows.map((r) => `${r.key}:${r.state}:${r.drawnAt}`).join('|')
+
+  if (signature === historySignature) return
+  historySignature = signature
+
   const list = el.historyList
   list.replaceChildren()
-
-  // 记录是共用的：三个类别抽过的都在这里，按时间倒序
-  const rows = state.records.slice(-30).reverse()
 
   if (!rows.length) {
     const li = document.createElement('li')
@@ -776,6 +787,10 @@ for (const tab of el.tabs) {
 
 el.draw.addEventListener('click', draw)
 el.sync.addEventListener('click', () => runSync({ force: true }))
+
+el.viewAll.addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('src/history/index.html') })
+})
 
 el.resetAccount.addEventListener('click', async () => {
   await send({ type: UI.SET_UID, uid: '' })
