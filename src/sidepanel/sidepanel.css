@@ -564,9 +564,9 @@ button:disabled:active {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  /* 固定成 3 行的高度：记录从 0 条变 1 条时，上方主体区域不跳动 */
+  /* 固定三个槽位，不滚动：记录条数变化时上方主体区域不跳动 */
   height: 140px;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .see-all {
@@ -581,12 +581,15 @@ button:disabled:active {
 }
 
 .history-list li {
+  flex: 0 0 46px;
+  height: 46px;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
-  padding: 6px;
+  padding: 5px 6px;
   border-radius: 8px;
   font-size: 13px;
+  overflow: hidden;
   animation: fadeIn 220ms ease;
 }
 
@@ -599,7 +602,6 @@ button:disabled:active {
   height: 6px;
   border-radius: 50%;
   flex: 0 0 auto;
-  margin-top: 7px;
   background: var(--line);
 }
 
@@ -622,6 +624,7 @@ button:disabled:active {
 }
 
 .row-title {
+  line-height: 18px;
   background: none;
   border: none;
   padding: 0;
@@ -641,13 +644,16 @@ button:disabled:active {
 .row-sub {
   color: var(--muted);
   font-size: 11px;
+  line-height: 16px;
 }
 
 
 .empty-line {
+  display: flex;
+  align-items: center;
   color: var(--muted);
   font-size: 12px;
-  padding: 4px 6px;
+  padding: 5px 6px;
 }
 
 /* ---------------------------------------------------------------- 其他 */
