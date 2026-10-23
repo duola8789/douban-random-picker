@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="./sidepanel.css" />
   </head>
   <body>
+    <div id="backdrop" class="backdrop" aria-hidden="true"></div>
+
     <header class="bar">
       <div class="brand">
         <h1>豆瓣随机</h1>
@@ -39,7 +41,7 @@
 
     <section class="history">
       <div class="history-head">
-        <h2>记录</h2>
+        <h2>记录<span id="history-count" class="history-count"></span></h2>
         <div class="history-tools">
           <button id="reset-account" class="link" type="button">更换账号</button>
           <button id="clear-history" class="link" type="button">清空</button>

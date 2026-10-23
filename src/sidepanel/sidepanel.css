@@ -22,6 +22,34 @@ body {
   height: 100%;
 }
 
+/* 侧边栏拉宽时不要一张卡片横跨整屏：内容收在 560px 内居中 */
+html {
+  background: var(--paper);
+}
+
+body {
+  background: transparent;
+  max-width: 560px;
+  margin-inline: auto;
+}
+
+/* 拉宽后两侧的留白用当前海报的模糊背景填上，很淡，只做气氛 */
+.backdrop {
+  position: fixed;
+  inset: -60px;
+  z-index: -1;
+  background-size: cover;
+  background-position: center;
+  filter: blur(46px) saturate(0.7) brightness(0.98);
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+}
+
+.backdrop.on {
+  opacity: 0.22;
+}
+
 body {
   display: flex;
   flex-direction: column;
@@ -219,6 +247,15 @@ button:disabled:active {
 .pending-actions {
   display: flex;
   gap: 8px;
+}
+
+/* 跳过不可用时，按钮不再接收指针，光标完全由这一层决定，避免来回跳 */
+.pending-actions:has(#skip:disabled) {
+  cursor: not-allowed;
+}
+
+#skip:disabled {
+  pointer-events: none;
 }
 
 /* 类选择器的 display 会盖掉 [hidden]，必须显式关掉 */
@@ -435,6 +472,11 @@ button:disabled:active {
 }
 
 /* 右侧结构化信息：导演 / 主演 / 类型 / 上映 */
+/* 容器本身不参与布局，让信息行/副标题直接进 .card-info 的 flex 流 */
+.info-body {
+  display: contents;
+}
+
 .info-rows {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -582,6 +624,16 @@ button:disabled:active {
   line-height: 1.2;
 }
 
+.my-mark .my-comment.is-placeholder {
+  color: var(--muted);
+}
+
+.comment-sig {
+  margin-left: 6px;
+  font-size: 10px;
+  color: #b3aca0;
+}
+
 .my-mark .my-comment {
   margin: 0;
   font-family: Georgia, "Songti SC", "Noto Serif SC", serif;
@@ -628,10 +680,15 @@ button:disabled:active {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
   /* 固定三个槽位，不滚动：记录条数变化时上方主体区域不跳动 */
   height: 140px;
   overflow: hidden;
+}
+
+.history-count {
+  margin-left: 6px;
+  font-weight: 400;
+  color: #b3aca0;
 }
 
 .see-all {
@@ -645,6 +702,11 @@ button:disabled:active {
   display: none;
 }
 
+/* 行间用内阴影画线，不占布局高度；空槽位不会露出底色 */
+.history-list li + li {
+  box-shadow: inset 0 1px 0 #efe9db;
+}
+
 .history-list li {
   flex: 0 0 46px;
   height: 46px;
@@ -652,7 +714,6 @@ button:disabled:active {
   align-items: center;
   gap: 8px;
   padding: 5px 6px;
-  border-radius: 8px;
   font-size: 13px;
   overflow: hidden;
   animation: fadeIn 220ms ease;

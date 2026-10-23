@@ -29,6 +29,8 @@ const el = {
   sync: $('#sync'),
   tabs: [...document.querySelectorAll('.tab')],
   historyList: $('#history-list'),
+  historyCount: $('#history-count'),
+  backdrop: $('#backdrop'),
   clearHistory: $('#clear-history'),
   viewAll: $('#view-all'),
   resetAccount: $('#reset-account'),
@@ -50,7 +52,7 @@ const state = {
   active: 'movie',
   intro: '',
   introLoading: false,
-  introKey: null,
+  detailKey: null,
   syncing: false,
   drawing: false,
   needsSetup: false,
@@ -204,7 +206,7 @@ async function draw() {
   }
 
   if (Array.isArray(res.records)) state.records = res.records
-  state.introKey = null
+  state.detailKey = null
   state.intro = ''
   render()
 }
@@ -216,7 +218,7 @@ function skip() {
 
   openConfirm({
     title: '不想看它？',
-    text: '这一类今天只有一次机会。',
+    text: `今天只能拒一次「${CATEGORY_LABEL[state.active] ?? '条目'}」。`,
     okLabel: '不想看它',
     onOk: () => doSkip(pending.key),
   })
@@ -226,7 +228,7 @@ async function doSkip(key) {
   const res = await send({ type: UI.SKIP, key })
   if (res?.ok) {
     state.records = res.records ?? state.records
-    state.introKey = null
+    state.detailKey = null
     state.intro = ''
   } else if (res?.error) {
     applyError(res.error, '跳过')
@@ -240,12 +242,13 @@ async function doSkip(key) {
  * 简介不在收藏接口里，只能单独请求详情。取到之后写回记录并保存在本地，
  * 所以切换页签、关掉侧边栏再打开都不会重复请求。
  */
-function ensureIntro(record) {
-  if (!record || state.introKey === record.key) return
-  state.introKey = record.key
+function ensureDetail(record) {
+  if (!record || state.detailKey === record.key) return
+  state.detailKey = record.key
 
-  if (record.intro) {
-    state.intro = record.intro
+  const hasDetail = Boolean(record.intro) || (record.category === 'book' && Boolean(record.press))
+  if (hasDetail) {
+    state.intro = record.intro ?? ''
     state.introLoading = false
     fillIntro()
     return
@@ -257,18 +260,36 @@ function ensureIntro(record) {
 
   const key = record.key
   send({ type: UI.DETAIL, subjectId: record.subjectId, category: record.category }).then((res) => {
-    if (state.introKey !== key) return
-    const text = res?.detail?.intro?.trim?.() ?? ''
+    if (state.detailKey !== key) return
+
+    const detail = res?.detail ?? {}
     state.introLoading = false
-    state.intro = text
+    state.intro = typeof detail.intro === 'string' ? detail.intro.trim() : ''
     fillIntro()
 
-    if (text) {
-      const target = state.records.find((r) => r.key === key)
-      if (target) target.intro = text
-      send({ type: UI.SAVE_INTRO, key, intro: text })
+    const patch = detailPatch(detail)
+    if (!Object.keys(patch).length) return
+
+    const target = state.records.find((r) => r.key === key)
+    if (target) {
+      Object.assign(target, patch)
+      // 出版信息到位后就地补上，不重放整张卡片的动画
+      if (cardRefs?.infoSlot) fillInfoInto(cardRefs.infoSlot, target)
     }
+    send({ type: UI.SAVE_DETAIL, key, patch })
   })
+}
+
+/** 详情响应里可以写回记录的字段 */
+function detailPatch(detail) {
+  const patch = {}
+  if (detail.intro) patch.intro = detail.intro
+  if (detail.author) patch.author = detail.author
+  if (detail.translator) patch.translator = detail.translator
+  if (detail.press) patch.press = detail.press
+  if (detail.pubdate) patch.bookPubdate = detail.pubdate
+  if (detail.pages) patch.pages = detail.pages
+  return patch
 }
 
 function fillIntro() {
@@ -336,7 +357,10 @@ function noticeFor(error) {
     case 'PENDING_EXISTS':
       return { text: '这一部还没了结。看完它，或者点「不想看它」。', blocking: false }
     case 'SKIP_LIMIT':
-      return { text: '这一类今天已经拒过了，明天再来。', blocking: false }
+      return {
+        text: `今天已经拒过「${CATEGORY_LABEL[state.active] ?? '条目'}」了，明天再来。`,
+        blocking: false,
+      }
     case 'NO_CANDIDATES':
       return { text: '这一类的候选是空的。可以先同步，或去豆瓣标记一些。', blocking: true }
     case 'POOL_EXHAUSTED':
@@ -390,6 +414,7 @@ function updateSyncButton() {
 function render() {
   renderToast()
   renderTabs()
+  renderHistoryCount()
   renderStage()
   renderHistory()
   renderActions()
@@ -409,7 +434,7 @@ function renderActions() {
     const allowed = canSkip(state.records, state.active)
     el.openDouban.disabled = false
     el.skip.disabled = !allowed
-    el.skip.textContent = allowed ? '不想看它（一天一次）' : '这一类明天再说'
+    el.skip.textContent = allowed ? '不想看它（一天一次）' : '明天再来'
   }
 }
 
@@ -454,14 +479,16 @@ function renderStage() {
   if (pending) {
     const { el: card, refs } = cardView(pending)
     cardRefs = refs
+    updateBackdrop(pending.coverUrl)
     stage.replaceChildren(card)
     // 卡片是新建的，简介总要重新铺一次；但只有没缓存时才发请求
-    if (state.introKey === pending.key) fillIntro()
-    else ensureIntro(pending)
+    if (state.detailKey === pending.key) fillIntro()
+    else ensureDetail(pending)
     return
   }
 
   cardRefs = null
+  updateBackdrop('')
 
   if (state.syncing && countByCategory()[state.active] === 0) {
     const skeleton = document.createElement('div')
@@ -471,6 +498,16 @@ function renderStage() {
   }
 
   stage.replaceChildren(placeholderView())
+}
+
+function updateBackdrop(url) {
+  if (!el.backdrop) return
+  if (url) {
+    el.backdrop.style.backgroundImage = `url("${url}")`
+    el.backdrop.classList.add('on')
+  } else {
+    el.backdrop.classList.remove('on')
+  }
 }
 
 function errorView(notice) {
@@ -635,27 +672,10 @@ function cardView(record) {
   }
   info.append(title, meta)
 
-  const rows = infoRows(record)
-  if (rows.length) {
-    const list = document.createElement('div')
-    list.className = 'info-rows'
-    for (const [label, value] of rows) {
-      const k = document.createElement('span')
-      k.className = 'info-label'
-      k.textContent = label
-      const v = document.createElement('span')
-      v.className = 'info-value'
-      v.textContent = value
-      list.append(k, v)
-    }
-    info.append(list)
-  } else if (record.subtitle) {
-    // 图书没有结构化的导演/主演字段，card_subtitle 已经是整理好的一行
-    const sub = document.createElement('p')
-    sub.className = 'subtitle'
-    sub.textContent = record.subtitle
-    info.append(sub)
-  }
+  const infoSlot = document.createElement('div')
+  infoSlot.className = 'info-body'
+  info.append(infoSlot)
+  fillInfoInto(infoSlot, record)
 
   // 我的标记：右栏底部的批注块
   const hasMine =
@@ -679,13 +699,21 @@ function cardView(record) {
       mine.append(stars)
     }
 
+    const comment = document.createElement('p')
     if (record.myComment) {
-      const comment = document.createElement('p')
       comment.className = 'my-comment'
       comment.textContent = record.myComment
       comment.title = record.myComment
-      mine.append(comment)
+    } else {
+      // 用户没写评语时放一句自己的话，署名区分来源
+      comment.className = 'my-comment is-placeholder'
+      comment.textContent = '少一点选择，多一点开始。'
+      const sig = document.createElement('span')
+      sig.className = 'comment-sig'
+      sig.textContent = '—— 豆瓣随机'
+      comment.append(sig)
     }
+    mine.append(comment)
 
     info.append(mine)
   }
@@ -701,21 +729,56 @@ function cardView(record) {
   body.append(introSlot)
 
   card.append(head, body)
-  return { el: card, refs: { introSlot, body } }
+  return { el: card, refs: { introSlot, infoSlot, body } }
 }
 
-/** 右侧的结构化信息行；图书没有这些字段，返回空数组 */
+/** 右侧的结构化信息行；图书走出版信息，电影走演职员 */
 function infoRows(record) {
   const rows = []
+
+  if (record.category === 'book') {
+    if (record.author) rows.push(['作者', record.author])
+    if (record.translator) rows.push(['译者', record.translator])
+    if (record.press) rows.push(['出版社', record.press])
+    const year = record.bookPubdate || record.pubdate
+    if (year) rows.push(['出版年', year])
+    if (record.pages) rows.push(['页数', record.pages])
+    return rows
+  }
+
   if (record.directors) rows.push(['导演', record.directors])
   if (record.actors) rows.push(['主演', record.actors])
   if (record.genres) rows.push(['类型', record.genres])
-  // 图书的 card_subtitle 已经包含作者 / 出版社 / 年份，不再重复出版日期
-  if (record.pubdate && record.category !== 'book') {
-    // 剧集说「首播」，电影说「上映」
-    rows.push([record.category === 'tv' ? '首播' : '上映', record.pubdate])
-  }
+  if (record.pubdate) rows.push([record.category === 'tv' ? '首播' : '上映', record.pubdate])
   return rows
+}
+
+function fillInfoInto(slot, record) {
+  slot.replaceChildren()
+
+  const rows = infoRows(record)
+  if (rows.length) {
+    const list = document.createElement('div')
+    list.className = 'info-rows'
+    for (const [label, value] of rows) {
+      const k = document.createElement('span')
+      k.className = 'info-label'
+      k.textContent = label
+      const v = document.createElement('span')
+      v.className = 'info-value'
+      v.textContent = value
+      list.append(k, v)
+    }
+    slot.append(list)
+    return
+  }
+
+  if (record.subtitle) {
+    const sub = document.createElement('p')
+    sub.className = 'subtitle'
+    sub.textContent = record.subtitle
+    slot.append(sub)
+  }
 }
 
 function markLabel(record) {
@@ -749,6 +812,11 @@ function tag(text) {
 }
 
 // ---------------------------------------------------------------- 记录
+
+function renderHistoryCount() {
+  const total = state.records.length
+  el.historyCount.textContent = total ? `最近 ${Math.min(RECENT_IN_PANEL, total)} 条` : ''
+}
 
 function renderHistory() {
   const rows = state.records.slice(-RECENT_IN_PANEL).reverse()

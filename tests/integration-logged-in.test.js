@@ -120,7 +120,11 @@ test('抽中后能补到简介，并能写回记录避免重复请求', async ()
   assert.equal(res.detail.ok, true)
   assert.ok(res.detail.intro.includes(pending.subjectId))
 
-  const saved = await env.uiSend({ type: 'ui:saveIntro', key: pending.key, intro: res.detail.intro })
+  const saved = await env.uiSend({
+    type: 'ui:saveDetail',
+    key: pending.key,
+    patch: { intro: res.detail.intro },
+  })
   assert.equal(saved.ok, true)
 
   const after = await env.uiSend({ type: 'ui:getState' })

@@ -16,12 +16,12 @@ import { CONFIG } from './config.js'
 export const RECORD_LIMIT = CONFIG.historyLimit
 
 /**
- * 每个类别每天最多跳过几次。
+ * 每个类别每天最多跳过几次。数值在 config.js 里调。
  *
  * 这是「不能无限抽」的最后一道闸：如果跳过可以随便点，
  * 它就会退化成新的「再抽一个」。
  */
-export const DAILY_SKIP_LIMIT = 1
+export const DAILY_SKIP_LIMIT = CONFIG.dailySkipLimit
 
 /** @typedef {'pending'|'skipped'|'done'} DecisionState */
 /** @typedef {'mark'|'doing'|'done'} MarkStatus */
