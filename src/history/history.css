@@ -46,7 +46,6 @@ body.page {
 }
 
 .record-list .rec.clickable {
-  cursor: pointer;
 }
 
 .record-list .rec.clickable:hover .row-title {
