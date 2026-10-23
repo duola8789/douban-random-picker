@@ -69,13 +69,15 @@ function render(records) {
 
     const sub = document.createElement('span')
     sub.className = 'row-sub'
-    sub.textContent = `${CATEGORY_LABEL[record.category] ?? '条目'} · ${formatTime(record.drawnAt)}`
+    sub.textContent = [CATEGORY_LABEL[record.category] ?? '条目', `来自${sourceTag(record).label}`, formatTime(record.drawnAt)]
+      .filter(Boolean)
+      .join(' · ')
 
     main.append(title, sub)
 
     const tags = document.createElement('span')
     tags.className = 'tag-row'
-    tags.append(renderTag(sourceTag(record)), renderTag(stateTag(record)))
+    tags.append(renderTag(stateTag(record)))
 
     row.append(dot, main, tags)
     if (record.url) {

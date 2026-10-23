@@ -39,11 +39,6 @@ export function stateTag(record) {
   }
 }
 
-/** 类别标签 */
-export function categoryTag(record) {
-  return { label: CATEGORY_LABEL[record.category] ?? '条目', tone: 'category' }
-}
-
 /** 生成一个标签元素 */
 export function renderTag({ label, tone }, extraClass = '') {
   const span = document.createElement('span')

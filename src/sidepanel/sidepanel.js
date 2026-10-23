@@ -620,9 +620,9 @@ function cardView(record) {
   title.className = 'card-title'
   title.textContent = record.title
 
+  // 类别不再显示：当前页签已经说明了是哪一类
   const meta = document.createElement('div')
   meta.className = 'card-meta'
-  meta.append(renderTag({ label: CATEGORY_LABEL[record.category] ?? '条目', tone: 'category' }))
   if (record.year) meta.append(tag(record.year))
   if (typeof record.doubanRating === 'number') {
     const score = document.createElement('span')
@@ -802,13 +802,16 @@ function renderHistory() {
 
     const sub = document.createElement('span')
     sub.className = 'row-sub'
-    sub.textContent = `${CATEGORY_LABEL[record.category] ?? '条目'} · ${formatTime(record.drawnAt)}`
+    // 来源写进副标题，避免和状态标签并排后分不清
+    sub.textContent = [CATEGORY_LABEL[record.category] ?? '条目', `来自${sourceTag(record).label}`, formatTime(record.drawnAt)]
+      .filter(Boolean)
+      .join(' · ')
 
     main.append(title, sub)
 
     const tags = document.createElement('span')
     tags.className = 'tag-row'
-    tags.append(renderTag(sourceTag(record)), renderTag(stateTag(record)))
+    tags.append(renderTag(stateTag(record)))
 
     li.append(dot, main, tags)
     if (record.url) {
