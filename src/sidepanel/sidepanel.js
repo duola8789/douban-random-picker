@@ -1,7 +1,7 @@
 /**
  * 侧边栏界面。
  *
- * 它只负责展示与发消息，所有长时间任务都在 content script / service worker 里，
+ * 只负责展示与发消息；长任务都在 content script / service worker 里，
  * 所以侧边栏关掉不会打断同步。
  */
 
@@ -14,25 +14,39 @@ const el = {
   stage: $('#stage'),
   draw: $('#draw'),
   sync: $('#sync'),
-  syncAll: $('#sync-all'),
-  resetAccount: $('#reset-account'),
   historyList: $('#history-list'),
   clearHistory: $('#clear-history'),
+  resetAccount: $('#reset-account'),
   toast: $('#toast'),
+  help: $('#help'),
+  helpPanel: $('#help-panel'),
+  helpClose: $('#help-close'),
   scopes: [...document.querySelectorAll('.scopes input')],
 }
+
+const CATEGORY_LABEL = { movie: '电影', tv: '剧集', book: '图书' }
 
 const state = {
   settings: null,
   caches: {},
   history: [],
   item: null,
+  intro: '',
+  introLoading: false,
+  introExpanded: false,
   syncing: false,
   needsSetup: false,
   probeReason: null,
-  notice: null,
+  toast: null,
+  blocking: null,
   progress: null,
+  cooldownUntil: 0,
+  hasDrawn: false,
 }
+
+/** 当前卡片的 DOM 引用，用于只更新简介而不重播动画 */
+let cardRefs = null
+let cooldownTimer = null
 
 const LOGIN_URL = 'https://www.douban.com/'
 
@@ -51,7 +65,7 @@ async function send(message) {
 async function boot() {
   const res = await send({ type: UI.GET_STATE })
   if (!res?.ok) {
-    state.notice = { text: '扩展状态读取失败，请重新打开侧边栏。' }
+    state.blocking = { text: '扩展状态读取失败，请重新打开侧边栏。' }
     render()
     return
   }
@@ -75,7 +89,7 @@ async function detectUid() {
   const probe = await send({ type: UI.PROBE_LOGIN })
   const uid = probe?.login?.ok ? probe.login.uid : ''
   if (!uid) {
-    console.warn('[豆瓣随机一部] 自动识别 uid 失败', probe)
+    console.warn('[豆瓣随机] 自动识别 uid 失败', probe)
     state.probeReason = probe?.login?.reason ?? probe?.error?.code ?? 'unknown'
     state.needsSetup = true
     render()
@@ -96,9 +110,11 @@ async function ensureFresh() {
 }
 
 async function runSync({ force = false, all = false } = {}) {
+  if (state.syncing) return
   state.syncing = true
   state.progress = null
-  state.notice = null
+  state.blocking = null
+  state.toast = null
   render()
 
   const res = await send({ type: UI.SYNC, force, all })
@@ -106,13 +122,21 @@ async function runSync({ force = false, all = false } = {}) {
   state.syncing = false
   state.progress = null
 
-  if (res?.error) {
-    console.warn('[豆瓣随机一部] 同步失败', res)
-    state.notice = noticeFor(res.error)
-  }
+  if (res?.error) applyError(res.error)
   await refreshState()
   render()
   return res
+}
+
+/** 把错误分成两类：挡住整个舞台的，和只提示一下的 */
+function applyError(error) {
+  const notice = noticeFor(error)
+  if (!notice) return
+
+  if (notice.blocking) state.blocking = notice
+  else state.toast = notice.text
+
+  if (notice.cooldownMs) setCooldown(notice.cooldownMs)
 }
 
 async function refreshState() {
@@ -125,20 +149,76 @@ async function refreshState() {
 }
 
 async function draw() {
-  el.draw.disabled = true
+  if (state.syncing) return
+  state.blocking = null
+  state.toast = null
+  state.drawBusy = true
+  render()
+
   const res = await send({ type: UI.PICK })
-  el.draw.disabled = false
+  state.drawBusy = false
 
   if (!res?.ok) {
-    state.notice = noticeFor(res?.error)
+    applyError(res?.error)
     render()
     return
   }
 
   state.item = res.item
+  state.hasDrawn = true
+  state.intro = ''
+  state.introLoading = true
+  state.introExpanded = false
   if (Array.isArray(res.history)) state.history = res.history
-  state.notice = null
   render()
+  loadIntro(res.item)
+}
+
+/** 抽中后补简介：收藏接口不返回 intro，要单独请求一次详情 */
+async function loadIntro(item) {
+  const res = await send({ type: UI.DETAIL, subjectId: item.subjectId, category: item.category })
+  if (state.item?.key !== item.key) return // 已经换了新的一条
+
+  state.introLoading = false
+  state.intro = res?.detail?.intro?.trim?.() ?? ''
+  fillIntro()
+}
+
+function fillIntro() {
+  if (!cardRefs?.introSlot) return
+  const slot = cardRefs.introSlot
+  slot.replaceChildren()
+
+  if (state.introLoading) {
+    const loading = document.createElement('p')
+    loading.className = 'intro-loading'
+    loading.textContent = '正在读取简介…'
+    slot.append(loading)
+    return
+  }
+
+  if (!state.intro) {
+    slot.hidden = true
+    return
+  }
+
+  const p = document.createElement('p')
+  p.className = state.introExpanded ? 'intro' : 'intro clamped'
+  p.textContent = state.intro
+  slot.append(p)
+
+  // 只有真的被截断时才显示展开按钮
+  if (p.scrollHeight > p.clientHeight + 2 || state.introExpanded) {
+    const toggle = document.createElement('button')
+    toggle.type = 'button'
+    toggle.className = 'intro-toggle'
+    toggle.textContent = state.introExpanded ? '收起' : '展开'
+    toggle.addEventListener('click', () => {
+      state.introExpanded = !state.introExpanded
+      fillIntro()
+    })
+    slot.append(toggle)
+  }
 }
 
 // ---------------------------------------------------------------- 错误文案
@@ -148,37 +228,79 @@ function noticeFor(error) {
   switch (code) {
     case 'NO_UID':
       state.needsSetup = true
-      return { text: '还没有设置豆瓣账号。' }
+      return { text: '还没有设置豆瓣账号。', blocking: true }
     case 'AUTH_REQUIRED': {
-      // 括号里是探测失败的具体原因，便于排查；不熟悉技术可以忽略
       const reason = error?.reason ? `（${error.reason}）` : ''
       return {
         text: `没能确认登录状态。请先在豆瓣网页登录，再回来同步。${reason}`,
         action: { label: '打开豆瓣', kind: 'login' },
+        blocking: true,
       }
     }
     case 'NO_DOUBAN_TAB':
-      return { text: '无法打开豆瓣页面，请先在浏览器里打开任意豆瓣页面后再同步。' }
+      return {
+        text: '没能打开豆瓣页面。请先手动打开一个豆瓣页面，再回来同步。',
+        blocking: true,
+      }
     case 'RATE_LIMITED':
-      return { text: '豆瓣请求过于频繁，已暂停。请过一会儿再试。' }
-    case 'TOO_SOON': {
-      const minutes = Math.max(1, Math.ceil((error?.retryAfterMs ?? 0) / 60000))
-      return { text: `刚同步过，${minutes} 分钟后才能再同步。` }
-    }
+      return { text: '豆瓣请求过于频繁，已暂停。请过一会儿再试。', blocking: false }
+    case 'TOO_SOON':
+      return {
+        text: '刚同步过，稍等一会儿才能再同步。已有的数据没有受影响。',
+        blocking: false,
+        cooldownMs: error?.retryAfterMs ?? 0,
+      }
     case 'NO_SCOPE':
-      return { text: '至少选择一类才能抽。' }
+      return { text: '至少选择一类才能抽。', blocking: false }
     case 'NO_CANDIDATES':
-      return { text: '选中的范围里还没有可抽的条目。可以先同步，或去豆瓣标记一些。' }
+      return {
+        text: '选中的范围里还没有可抽的条目。可以先同步，或去豆瓣标记一些。',
+        blocking: true,
+      }
     case 'POOL_EXHAUSTED':
       return {
         text: '最近的都抽过一遍了。清空历史可以重新开始。',
         action: { label: '清空历史', kind: 'clear' },
+        blocking: true,
       }
-    case 'SYNCING':
-      return { text: '正在同步，稍等一下。' }
     default:
-      return { text: '出了点问题，请稍后重试。' }
+      return { text: '出了点问题，请稍后重试。', blocking: false }
   }
+}
+
+// ---------------------------------------------------------------- 冷却
+
+function setCooldown(ms) {
+  if (!ms || ms <= 0) return
+  state.cooldownUntil = Date.now() + ms
+  clearInterval(cooldownTimer)
+  cooldownTimer = setInterval(() => {
+    if (Date.now() >= state.cooldownUntil) {
+      state.cooldownUntil = 0
+      clearInterval(cooldownTimer)
+    }
+    updateSyncButton()
+  }, 1000)
+  updateSyncButton()
+}
+
+function updateSyncButton() {
+  const left = state.cooldownUntil - Date.now()
+  if (state.syncing) {
+    el.sync.textContent = '同步中'
+    el.sync.disabled = true
+    return
+  }
+  if (left > 0) {
+    const s = Math.ceil(left / 1000)
+    const mm = Math.floor(s / 60)
+    const ss = String(s % 60).padStart(2, '0')
+    el.sync.textContent = `同步 ${mm}:${ss}`
+    el.sync.disabled = true
+    return
+  }
+  el.sync.textContent = '同步'
+  el.sync.disabled = state.syncing
 }
 
 // ---------------------------------------------------------------- 渲染
@@ -187,16 +309,15 @@ function render() {
   renderToast()
   renderStage()
   renderHistory()
-  el.draw.disabled = state.syncing
-  el.sync.disabled = state.syncing
-  el.syncAll.disabled = state.syncing
-  el.sync.textContent = state.syncing ? '同步中' : '同步'
+  el.draw.disabled = state.syncing || Boolean(state.drawBusy)
+  el.draw.textContent = state.hasDrawn || state.item ? '再抽一个' : '抽一个'
+  updateSyncButton()
 }
 
 function renderToast() {
-  if (state.notice) {
+  if (state.toast) {
     el.toast.hidden = false
-    el.toast.textContent = state.notice.text
+    el.toast.textContent = state.toast
   } else {
     el.toast.hidden = true
     el.toast.textContent = ''
@@ -205,30 +326,61 @@ function renderToast() {
 
 function renderStage() {
   const stage = el.stage
-  stage.replaceChildren()
 
   if (state.needsSetup) {
-    stage.append(setupView())
+    cardRefs = null
+    stage.replaceChildren(setupView())
     return
   }
 
-  if (state.syncing && !state.item) {
-    if (countByCategory().total === 0) {
-      const skeleton = document.createElement('div')
-      skeleton.className = 'skeleton'
-      stage.append(skeleton)
-      return
-    }
-    stage.append(placeholderView())
+  if (state.blocking) {
+    cardRefs = null
+    stage.replaceChildren(errorView(state.blocking))
     return
   }
 
   if (state.item) {
-    stage.append(cardView(state.item))
+    const card = cardView(state.item)
+    cardRefs = card.refs
+    stage.replaceChildren(card.el)
+    fillIntro()
     return
   }
 
-  stage.append(placeholderView())
+  cardRefs = null
+
+  if (state.syncing && countByCategory().total === 0) {
+    const skeleton = document.createElement('div')
+    skeleton.className = 'skeleton'
+    stage.replaceChildren(skeleton)
+    return
+  }
+
+  stage.replaceChildren(placeholderView())
+}
+
+function errorView(notice) {
+  const wrap = document.createElement('div')
+  wrap.className = 'placeholder'
+
+  const title = document.createElement('strong')
+  title.textContent = '暂时抽不了'
+  const hint = document.createElement('span')
+  hint.textContent = notice.text
+  wrap.append(title, hint)
+
+  if (notice.action) {
+    const row = document.createElement('div')
+    row.className = 'actions-row'
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'ghost'
+    btn.textContent = notice.action.label
+    btn.addEventListener('click', () => runNoticeAction(notice.action.kind))
+    row.append(btn)
+    wrap.append(row)
+  }
+  return wrap
 }
 
 function setupView() {
@@ -238,9 +390,7 @@ function setupView() {
   const title = document.createElement('strong')
   title.textContent = '先告诉我在哪儿找你'
   const hint = document.createElement('span')
-  const base = state.settings?.uid
-    ? '没能确认登录状态。请先在豆瓣网页登录，或直接粘贴个人主页地址。'
-    : '没能自动识别。请先在豆瓣网页登录，或直接粘贴个人主页地址。'
+  const base = '没能自动识别。请先在豆瓣网页登录，或直接粘贴个人主页地址。'
   hint.textContent = state.probeReason ? `${base}（${state.probeReason}）` : base
 
   const form = document.createElement('form')
@@ -259,12 +409,12 @@ function setupView() {
     event.preventDefault()
     const uid = parseUid(input.value)
     if (!uid) {
-      state.notice = { text: '这个地址里没有找到用户 ID。' }
+      state.toast = '这个地址里没有找到用户 ID。'
       render()
       return
     }
     state.needsSetup = false
-    state.notice = null
+    state.toast = null
     await send({ type: UI.SET_UID, uid })
     state.settings.uid = uid
     await runSync({ force: true })
@@ -290,7 +440,6 @@ function parseUid(value) {
   if (!trimmed) return ''
   const m = /\/people\/([^/?#\s]+)/.exec(trimmed)
   if (m) return m[1]
-  // 允许直接粘贴纯 uid
   if (/^[\w.-]+$/.test(trimmed) && !trimmed.includes(' ')) return trimmed
   return ''
 }
@@ -307,52 +456,41 @@ function placeholderView() {
     hint.textContent = state.progress
       ? `已取回 ${state.progress.fetched} / ${state.progress.total} 条`
       : '正在读取你在豆瓣的标记…'
-  } else if (state.notice) {
-    title.textContent = '暂时没法抽'
-    hint.textContent = state.notice.text
   } else {
-    title.textContent = '准备好了'
     const counts = countByCategory()
-    hint.textContent =
-      counts.total > 0
-        ? `候选：电影 ${counts.movie} · 剧集 ${counts.tv} · 图书 ${counts.book}`
-        : '还没有候选条目，点「同步」拉一次。'
+    if (counts.total > 0) {
+      title.textContent = '准备好了'
+      hint.textContent = '点下面的按钮，从这些条目里抽一个。'
+      wrap.append(title, hint, countsView(counts))
+      return wrap
+    }
+    title.textContent = '还没有候选'
+    hint.textContent = '点右上角「同步」拉一次你在豆瓣的标记。'
   }
 
   wrap.append(title, hint)
-
-  if (state.notice?.action) {
-    const row = document.createElement('div')
-    row.className = 'actions-row'
-    const btn = document.createElement('button')
-    btn.type = 'button'
-    btn.className = 'ghost'
-    btn.textContent = state.notice.action.label
-    btn.addEventListener('click', () => runNoticeAction(state.notice.action.kind))
-    row.append(btn)
-    wrap.append(row)
-  }
-
   return wrap
 }
 
-async function runNoticeAction(kind) {
-  if (kind === 'login') {
-    chrome.tabs.create({ url: LOGIN_URL })
-    return
+function countsView(counts) {
+  const row = document.createElement('div')
+  row.className = 'counts'
+  for (const [cat, label] of Object.entries(CATEGORY_LABEL)) {
+    const span = document.createElement('span')
+    span.append(label + ' ')
+    const b = document.createElement('b')
+    b.textContent = String(counts[cat] ?? 0)
+    span.append(b)
+    row.append(span)
   }
-  if (kind === 'clear') {
-    await send({ type: UI.CLEAR_HISTORY })
-    state.history = []
-    state.notice = null
-    render()
-  }
+  return row
 }
 
 function cardView(item) {
   const card = document.createElement('article')
   card.className = 'card'
 
+  // 封面
   const cover = document.createElement('div')
   cover.className = 'card-cover'
   if (item.coverUrl) {
@@ -360,14 +498,13 @@ function cardView(item) {
     img.src = item.coverUrl
     img.alt = item.title
     img.loading = 'lazy'
-    img.addEventListener('error', () => {
-      cover.replaceChildren(noCover())
-    })
+    img.addEventListener('error', () => cover.replaceChildren(noCover(item.category)))
     cover.append(img)
   } else {
-    cover.append(noCover())
+    cover.append(noCover(item.category))
   }
 
+  // 正文
   const body = document.createElement('div')
   body.className = 'card-body'
 
@@ -377,7 +514,10 @@ function cardView(item) {
 
   const meta = document.createElement('div')
   meta.className = 'card-meta'
-  meta.append(tag(CATEGORY_LABEL[item.category] ?? '条目'))
+  const pill = document.createElement('span')
+  pill.className = 'pill'
+  pill.textContent = CATEGORY_LABEL[item.category] ?? '条目'
+  meta.append(pill)
   if (item.year) meta.append(tag(item.year))
   if (typeof item.doubanRating === 'number') {
     const score = document.createElement('span')
@@ -385,16 +525,26 @@ function cardView(item) {
     score.textContent = `豆瓣 ${item.doubanRating.toFixed(1)}`
     meta.append(score)
   }
-  if (item.subtitle) {
-    const sub = document.createElement('span')
-    sub.textContent = item.subtitle
-    meta.append(sub)
-  }
 
   body.append(title, meta)
 
-  // 我的评分 / 短评可能缺失（例如未来的豆列来源），缺失时整块不渲染
+  if (item.subtitle) {
+    const sub = document.createElement('p')
+    sub.className = 'subtitle'
+    sub.textContent = item.subtitle
+    body.append(sub)
+  }
+
+  const introSlot = document.createElement('div')
+  introSlot.className = 'intro-wrap'
+  body.append(introSlot)
+
+  // 我的评分 / 短评：缺失时整块不渲染
   if (typeof item.myRating === 'number' || item.myComment) {
+    const divider = document.createElement('div')
+    divider.className = 'divider'
+    body.append(divider)
+
     const mine = document.createElement('div')
     mine.className = 'my'
     if (typeof item.myRating === 'number') {
@@ -413,27 +563,43 @@ function cardView(item) {
     body.append(mine)
   }
 
-  const links = document.createElement('div')
-  links.className = 'card-links'
+  const foot = document.createElement('div')
+  foot.className = 'card-foot'
+  const source = document.createElement('span')
+  source.className = 'source'
+  source.textContent = `来自「${sourceLabel(item)}」`
   const open = document.createElement('button')
   open.type = 'button'
-  open.textContent = '去豆瓣看看'
+  open.textContent = '去豆瓣标记'
   open.addEventListener('click', () => chrome.tabs.create({ url: item.url }))
-  const again = document.createElement('button')
-  again.type = 'button'
-  again.textContent = '再抽一个'
-  again.addEventListener('click', draw)
-  links.append(open, again)
-  body.append(links)
+  foot.append(source, open)
+  body.append(foot)
 
   card.append(cover, body)
-  return card
+  return { el: card, refs: { introSlot } }
 }
 
-function noCover() {
+function sourceLabel(item) {
+  const book = item.category === 'book'
+  switch (item.status) {
+    case 'doing':
+      return book ? '在读' : '在看'
+    case 'done':
+      return book ? '读过' : '看过'
+    default:
+      return book ? '想读' : '想看'
+  }
+}
+
+function noCover(category) {
   const div = document.createElement('div')
   div.className = 'no-cover'
-  div.textContent = '没有封面'
+  const glyph = document.createElement('span')
+  glyph.className = 'glyph'
+  glyph.textContent = category === 'book' ? '书' : '影'
+  const text = document.createElement('span')
+  text.textContent = '暂无封面'
+  div.append(glyph, text)
   return div
 }
 
@@ -461,30 +627,37 @@ function renderHistory() {
     const dot = document.createElement('span')
     dot.className = `dot ${record.category ?? ''}`
 
-    const name = document.createElement('button')
-    name.type = 'button'
-    name.className = 'name'
-    name.textContent = record.title
-    name.title = record.title
-    if (record.url) name.addEventListener('click', () => chrome.tabs.create({ url: record.url }))
+    const main = document.createElement('div')
+    main.className = 'row-main'
 
-    const when = document.createElement('span')
-    when.className = 'when'
-    when.textContent = formatDay(record.drawnAt)
+    const title = document.createElement('button')
+    title.type = 'button'
+    title.className = 'row-title'
+    title.textContent = record.title
+    title.title = record.title
+    if (record.url) title.addEventListener('click', () => chrome.tabs.create({ url: record.url }))
 
-    li.append(dot, name, when)
+    const sub = document.createElement('span')
+    sub.className = 'row-sub'
+    sub.textContent = `${CATEGORY_LABEL[record.category] ?? '条目'} · ${formatTime(record.drawnAt)}`
+
+    main.append(title, sub)
+    li.append(dot, main)
     list.append(li)
   }
 }
 
-function formatDay(ts) {
+function formatTime(ts) {
   if (!ts) return ''
   const d = new Date(ts)
   const now = new Date()
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
   const sameDay = d.toDateString() === now.toDateString()
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  if (sameDay) return `今天 ${hh}:${mm}`
+  const mo = String(d.getMonth() + 1).padStart(2, '0')
   const dd = String(d.getDate()).padStart(2, '0')
-  return sameDay ? '今天' : `${mm}-${dd}`
+  return `${mo}-${dd} ${hh}:${mm}`
 }
 
 function countByCategory() {
@@ -500,12 +673,9 @@ function countByCategory() {
 
 // ---------------------------------------------------------------- 事件
 
-const CATEGORY_LABEL = { movie: '电影', tv: '剧集', book: '图书' }
-
 function syncScopeInputs() {
   for (const input of el.scopes) {
-    const cat = input.dataset.cat
-    input.checked = Boolean(state.settings?.scopes?.[cat])
+    input.checked = Boolean(state.settings?.scopes?.[input.dataset.cat])
   }
 }
 
@@ -516,7 +686,6 @@ for (const input of el.scopes) {
     state.settings.scopes = scopes
     state.syncing = true
     render()
-    // service worker 收到后会按新范围补拉缺失的维度
     const res = await send({ type: UI.SET_SCOPES, scopes })
     if (res?.settings) state.settings = { ...state.settings, ...res.settings }
     if (!res?.ok) state.syncing = false
@@ -526,13 +695,14 @@ for (const input of el.scopes) {
 
 el.draw.addEventListener('click', draw)
 el.sync.addEventListener('click', () => runSync({ force: true }))
-el.syncAll.addEventListener('click', () => runSync({ force: true, all: true }))
 
 el.resetAccount.addEventListener('click', async () => {
   await send({ type: UI.SET_UID, uid: '' })
   state.settings.uid = ''
   state.item = null
-  state.notice = null
+  state.hasDrawn = false
+  state.toast = null
+  state.blocking = null
   state.probeReason = null
   state.needsSetup = false
   render()
@@ -558,20 +728,45 @@ el.clearHistory.addEventListener('click', async () => {
   render()
 })
 
+el.help.addEventListener('click', () => {
+  el.helpPanel.hidden = false
+})
+el.helpClose.addEventListener('click', () => {
+  el.helpPanel.hidden = true
+})
+el.helpPanel.addEventListener('click', (event) => {
+  if (event.target === el.helpPanel) el.helpPanel.hidden = true
+})
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') el.helpPanel.hidden = true
+})
+
+async function runNoticeAction(kind) {
+  if (kind === 'login') {
+    chrome.tabs.create({ url: LOGIN_URL })
+    return
+  }
+  if (kind === 'clear') {
+    await send({ type: UI.CLEAR_HISTORY })
+    state.history = []
+    state.blocking = null
+    render()
+  }
+}
+
 chrome.runtime.onMessage.addListener((message) => {
   if (message?.type === SW_EVENT.SYNC_PROGRESS) {
     state.progress = { fetched: message.fetched ?? 0, total: message.total ?? 0 }
     state.syncing = true
-    if (!state.item) renderStage()
+    if (!state.item && !state.blocking) renderStage()
     el.draw.disabled = true
     el.sync.disabled = true
-    el.syncAll.disabled = true
     return
   }
   if (message?.type === SW_EVENT.SYNC_FINISHED) {
     state.syncing = false
     state.progress = null
-    state.notice = message.result?.error ? noticeFor(message.result.error) : null
+    if (message.result?.error) applyError(message.result.error)
     refreshState().then(() => render())
   }
 })

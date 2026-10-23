@@ -59,6 +59,8 @@ export function normalizeInterest(raw) {
     url: str(subject.url) ?? `https://www.douban.com/subject/${subjectId}/`,
     doubanRating: ratingOf(subject.rating?.value),
     subtitle: str(subject.card_subtitle),
+    // 条目在豆瓣里的标记状态：mark / doing / done。界面据此显示「来自『想看』」
+    status: str(raw?.status) ?? 'mark',
     // 以下三项可能缺失：v2 的豆列来源没有「我的」数据
     myRating: ratingOf(raw?.rating?.value),
     myComment: str(raw?.comment),

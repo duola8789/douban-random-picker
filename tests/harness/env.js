@@ -159,6 +159,16 @@ export function createEnv({ uid = '20250101', loggedIn = true, mineRedirect = tr
       return fakeResponse(200, finalUrl, '<html></html>')
     }
 
+    // 条目详情（抽中后用来补简介）
+    const detail = /^https:\/\/m\.douban\.com\/rexxar\/api\/v2\/(movie|book)\/(\d+)$/.exec(href)
+    if (detail) {
+      return fakeResponse(200, href, {
+        id: detail[2],
+        intro: `《条目 ${detail[2]}》的简介，用来验证简介链路。`,
+        card_subtitle: '详情副标题',
+      })
+    }
+
     const u = new URL(href)
     const type = u.searchParams.get('type')
     const start = Number(u.searchParams.get('start') ?? 0)

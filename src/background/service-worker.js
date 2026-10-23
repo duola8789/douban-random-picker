@@ -12,6 +12,7 @@ import {
   handleSyncProgress,
   isSyncing,
   checkLogin,
+  fetchDetail,
 } from './sync.js'
 
 // 点击工具栏图标直接展开侧边栏，不注册 popup
@@ -102,6 +103,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     case UI.PICK:
       handlePick().then(sendResponse)
+      return true
+
+    case UI.DETAIL:
+      fetchDetail({ subjectId: message.subjectId, category: message.category })
+        .then(sendResponse)
+        .catch(() => sendResponse({ ok: false, error: { code: ERROR.NETWORK } }))
       return true
 
     case UI.SYNC:
