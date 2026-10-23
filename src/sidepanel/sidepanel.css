@@ -383,6 +383,27 @@ button:disabled:active {
   font-weight: 600;
 }
 
+/*
+ * 卡片内部滚动时，内容会直接切在卡片底边上，看起来像缺了内边距。
+ * 用一层贴底的渐变把它淡出，视觉上始终留出呼吸。
+ */
+.card::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 6px;
+  height: 22px;
+  background: linear-gradient(to bottom, rgba(255, 253, 248, 0), #fffdf8);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.card.is-scrollable::after {
+  opacity: 1;
+}
+
 /* 掷骰：图标翻转 + 轻微弹跳，像真的掷了一次 */
 .rolling {
   flex: 1;
@@ -437,6 +458,7 @@ button:disabled:active {
 /* ---------------------------------------------------------------- 卡片 */
 
 .card {
+  position: relative;
   width: 100%;
   /*
    * 撑满剩余高度，但不超过舞台：内容超出时由卡片内部滚动，
@@ -585,7 +607,19 @@ button:disabled:active {
     height: 198px;
   }
 
+  /*
+   * 竖排之后，光是头部（海报 198 + 信息）就可能比整个舞台还高，
+   * 这时只让简介区滚动没用——改成整张卡片滚动，头部一起走。
+   */
+  .card {
+    max-height: 100%;
+    overflow-y: auto;
+  }
+
   .card-body {
+    flex: 0 0 auto;
+    min-height: auto;
+    overflow: visible;
     padding: 0 12px 12px;
   }
 
