@@ -49,7 +49,16 @@ async function getState() {
  * 早期版本的记录没有 directors / actors / genres / pubdate 等字段，
  * 直接渲染会只剩一行副标题。这里读的时候从缓存补，不用迁移存储。
  */
-const ENRICH_FIELDS = ['directors', 'actors', 'genres', 'pubdate', 'subtitle', 'markedOn']
+/** 只补空缺的静态字段：导演、主演等不会因为用户操作而变化 */
+const FILL_FIELDS = ['directors', 'actors', 'genres', 'pubdate', 'subtitle', 'markedOn']
+
+/**
+ * 用户可编辑的字段：以缓存为准，直接覆盖。
+ *
+ * 用户在豆瓣改评语、改评分之后，同步会更新缓存；如果这里只补空缺，
+ * 记录里那份旧快照就会一直赢，界面看起来「改了没反应」。
+ */
+const REFRESH_FIELDS = ['myComment', 'myRating', 'markStatus', 'doubanRating']
 
 function enrichRecords(records, caches) {
   const index = new Map()
@@ -62,9 +71,14 @@ function enrichRecords(records, caches) {
     if (!item) return record
 
     const patch = {}
-    for (const field of ENRICH_FIELDS) {
+    for (const field of FILL_FIELDS) {
       if (record[field] == null && item[field] != null) patch[field] = item[field]
     }
+    for (const field of REFRESH_FIELDS) {
+      // 字段在条目里存在就采用，包括用户把它清空的情况
+      if (field in item && item[field] !== record[field]) patch[field] = item[field]
+    }
+
     return Object.keys(patch).length ? { ...record, ...patch } : record
   })
 }

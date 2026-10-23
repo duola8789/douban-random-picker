@@ -141,3 +141,46 @@ test('最短更新频率拦住手动同步', async () => {
   assert.equal(res.error.code, 'TOO_SOON')
   assert.ok(res.error.retryAfterMs > 0)
 })
+
+test('同步后记录里的评语与评分以缓存为准', async () => {
+  await env.chrome.storage.local.set({
+    settings: { uid: '1000001', category: 'movie' },
+    caches: {
+      'movie:mark': {
+        items: [
+          {
+            key: 'movie:1',
+            category: 'movie',
+            title: 'x',
+            status: 'mark',
+            myComment: '改过之后的新评语',
+            myRating: 5,
+            directors: '某导演',
+          },
+        ],
+        total: 1,
+        syncedAt: Date.now(),
+        partial: false,
+      },
+      'book:mark': { items: [], total: 0, syncedAt: 0, partial: false },
+    },
+    records: [
+      {
+        key: 'movie:1',
+        category: 'movie',
+        title: 'x',
+        state: 'pending',
+        drawnAt: Date.now(),
+        myComment: '抽取时的旧评语',
+        markStatus: 'mark',
+      },
+    ],
+  })
+
+  const state = await env.uiSend({ type: 'ui:getState' })
+  const record = state.records[0]
+
+  assert.equal(record.myComment, '改过之后的新评语', '用户可编辑字段应被缓存覆盖')
+  assert.equal(record.myRating, 5)
+  assert.equal(record.directors, '某导演', '静态字段应补全')
+})
