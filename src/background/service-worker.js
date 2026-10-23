@@ -38,9 +38,35 @@ async function getState() {
     ok: true,
     settings,
     caches: summarizeCaches(caches),
-    records: records.slice(-RECENT_RECORDS),
+    records: enrichRecords(records, caches).slice(-RECENT_RECORDS),
     syncing: isSyncing(),
   }
+}
+
+/**
+ * 用缓存里的完整条目补全记录。
+ *
+ * 早期版本的记录没有 directors / actors / genres / pubdate 等字段，
+ * 直接渲染会只剩一行副标题。这里读的时候从缓存补，不用迁移存储。
+ */
+const ENRICH_FIELDS = ['directors', 'actors', 'genres', 'pubdate', 'subtitle', 'markedOn']
+
+function enrichRecords(records, caches) {
+  const index = new Map()
+  for (const entry of Object.values(caches ?? {})) {
+    for (const item of entry?.items ?? []) index.set(item.key, item)
+  }
+
+  return records.map((record) => {
+    const item = index.get(record.key)
+    if (!item) return record
+
+    const patch = {}
+    for (const field of ENRICH_FIELDS) {
+      if (record[field] == null && item[field] != null) patch[field] = item[field]
+    }
+    return Object.keys(patch).length ? { ...record, ...patch } : record
+  })
 }
 
 function summarizeCaches(caches) {
