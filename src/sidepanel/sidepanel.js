@@ -252,7 +252,7 @@ function skip(event) {
   openConfirm({
     title: '不想看它？',
     text: `今天只能给你一次重新选「${CATEGORY_LABEL[state.active] ?? '条目'}」的机会哦`,
-    okLabel: '真不想看',
+    okLabel: '换一个',
     onOk: () => doSkip(pending.key),
   })
 }
@@ -516,6 +516,9 @@ function renderTabs() {
     const on = cat === state.active
     tab.classList.toggle('active', on)
     tab.setAttribute('aria-selected', String(on))
+    // 掷骰期间不允许切页签：那一抽是针对当前类别的，
+    // 切走会让结果落在别的页签上，用户看不到自己抽中了什么
+    tab.disabled = state.drawing
     const badge = tab.querySelector('.tab-count')
     badge.textContent = counts[cat] ? String(counts[cat]) : ''
   }
@@ -994,6 +997,7 @@ function formatTime(ts) {
 
 for (const tab of el.tabs) {
   tab.addEventListener('click', async () => {
+    if (state.drawing) return
     if (tab.dataset.cat === state.active) return
     state.active = tab.dataset.cat
     state.blocking = null
