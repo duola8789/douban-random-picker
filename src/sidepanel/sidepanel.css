@@ -418,7 +418,7 @@ button:disabled:active {
   width: 64px;
   height: 64px;
   /* 一次转完就停，不再循环 */
-  animation: tumble 1200ms linear forwards;
+  animation: tumble 3000ms linear forwards;
 }
 
 /*
@@ -429,20 +429,20 @@ button:disabled:active {
   0% {
     transform: rotate(0deg) translateY(0) scale(1);
   }
-  18% {
-    transform: rotate(320deg) translateY(-8px) scale(1.05);
+  16% {
+    transform: rotate(480deg) translateY(-8px) scale(1.05);
   }
-  42% {
-    transform: rotate(650deg) translateY(0) scale(1);
-  }
-  66% {
-    transform: rotate(870deg) translateY(-4px) scale(1.02);
-  }
-  86% {
+  38% {
     transform: rotate(1010deg) translateY(0) scale(1);
   }
+  60% {
+    transform: rotate(1420deg) translateY(-4px) scale(1.02);
+  }
+  82% {
+    transform: rotate(1700deg) translateY(0) scale(1);
+  }
   100% {
-    transform: rotate(1080deg) translateY(0) scale(1);
+    transform: rotate(1800deg) translateY(0) scale(1);
   }
 }
 
@@ -1051,15 +1051,26 @@ button:disabled:active {
   border-top: 1px dashed var(--line);
 }
 
+/* 业务数据：红色文字链接（当前危险等级的基准） */
 .dev-link {
   color: var(--warn);
   font-size: 13px;
   padding: 0;
 }
 
-.dev-link.dev-link-muted {
-  margin-top: 10px;
-  color: var(--ink);
+/* 全部数据：更危险一档，实心按钮 */
+.dev-danger {
+  display: block;
+  margin-bottom: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  background: #8a2b16;
+  color: #fff;
+  font-size: 13px;
+}
+
+.dev-danger:hover {
+  background: #71220f;
 }
 
 .dev-hint {
