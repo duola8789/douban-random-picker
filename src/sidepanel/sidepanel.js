@@ -1044,6 +1044,11 @@ el.help.addEventListener('click', () => {
 })
 
 // dev-only:start
+// 本地构建在标题上标出来，避免和生产包混淆
+const brandTitle = document.querySelector('.brand h1')
+if (brandTitle) brandTitle.textContent = '豆瓣随机-local'
+document.title = '豆瓣随机-local'
+
 const devSection = $('#dev-section')
 const resetAll = $('#reset-all')
 if (devSection) devSection.hidden = false
