@@ -388,7 +388,8 @@ button:disabled:active {
 .card-head {
   display: flex;
   gap: 12px;
-  padding: 14px 14px 0;
+  /* 下边距给发丝线上方留出呼吸空间 */
+  padding: 14px 14px 16px;
 }
 
 .card-cover {
