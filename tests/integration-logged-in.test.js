@@ -75,6 +75,29 @@ test('跳过后可以再抽，且记录保留为跳过', async () => {
   assert.notEqual(again.item.key, pending.key, '不应立刻抽回刚跳过的那条')
 })
 
+test('同一类别当天第二次跳过被拒绝', async () => {
+  const state = await env.uiSend({ type: 'ui:getState' })
+  const pending = state.records.find((r) => r.category === 'book' && r.state === 'pending')
+  assert.ok(pending, '图书类别应有一条新的待看')
+
+  const res = await env.uiSend({ type: 'ui:skip', key: pending.key })
+  assert.equal(res.ok, false)
+  assert.equal(res.error.code, 'SKIP_LIMIT')
+
+  const after = await env.uiSend({ type: 'ui:getState' })
+  const still = after.records.find((r) => r.key === pending.key)
+  assert.equal(still.state, 'pending', '被拒绝时状态不应改变')
+})
+
+test('别的类别仍有跳过机会', async () => {
+  const state = await env.uiSend({ type: 'ui:getState' })
+  const pending = state.records.find((r) => r.category === 'movie' && r.state === 'pending')
+  assert.ok(pending)
+
+  const res = await env.uiSend({ type: 'ui:skip', key: pending.key })
+  assert.equal(res.ok, true, '电影类别今天还没跳过')
+})
+
 test('抽中后能补到简介', async () => {
   const state = await env.uiSend({ type: 'ui:getState' })
   const pending = state.records.find((r) => r.state === 'pending')

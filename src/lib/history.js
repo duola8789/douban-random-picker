@@ -15,6 +15,14 @@ import { CONFIG } from './config.js'
 
 export const RECORD_LIMIT = CONFIG.historyLimit
 
+/**
+ * 每个类别每天最多跳过几次。
+ *
+ * 这是「不能无限抽」的最后一道闸：如果跳过可以随便点，
+ * 它就会退化成新的「再抽一个」。
+ */
+export const DAILY_SKIP_LIMIT = 1
+
 /** @typedef {'pending'|'skipped'|'done'} DecisionState */
 /** @typedef {'mark'|'doing'|'done'} MarkStatus */
 
@@ -65,6 +73,34 @@ export function resolveRecord(records, key, state, now = Date.now()) {
   return (records ?? []).map((r) =>
     r.key === key && r.state === 'pending' ? { ...r, state, resolvedAt: now } : r,
   )
+}
+
+/** 同一天（本地时区） */
+export function sameLocalDay(a, b) {
+  const da = new Date(a)
+  const db = new Date(b)
+  return (
+    da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate()
+  )
+}
+
+/** 某类别今天已经跳过了几次 */
+export function skipsToday(records, category, now = Date.now()) {
+  return (records ?? []).filter(
+    (r) => r.category === category && r.state === 'skipped' && sameLocalDay(r.resolvedAt ?? r.drawnAt, now),
+  ).length
+}
+
+/** 今天还能不能跳过 */
+export function canSkip(records, category, now = Date.now()) {
+  return skipsToday(records, category, now) < DAILY_SKIP_LIMIT
+}
+
+/** 今天还剩几次跳过机会 */
+export function skipsLeft(records, category, now = Date.now()) {
+  return Math.max(0, DAILY_SKIP_LIMIT - skipsToday(records, category, now))
 }
 
 /**
