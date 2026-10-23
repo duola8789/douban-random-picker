@@ -7,7 +7,7 @@
 
 import { UI, SW_EVENT } from '../lib/messages.js'
 import { allDimensionKeys, isFresh } from '../lib/cache.js'
-import { pendingFor } from '../lib/history.js'
+import { pendingFor, canSkip } from '../lib/history.js'
 
 const $ = (sel) => document.querySelector(sel)
 
@@ -204,6 +204,8 @@ async function skip() {
     state.records = res.records ?? state.records
     state.introKey = null
     state.intro = ''
+  } else if (res?.error) {
+    applyError(res.error, '跳过')
   }
   render()
 }
@@ -289,6 +291,8 @@ function noticeFor(error) {
       }
     case 'PENDING_EXISTS':
       return { text: '这一类还有没处理的片子，先看完或跳过再抽。', blocking: false }
+    case 'SKIP_LIMIT':
+      return { text: '今天已经跳过 1 次了，明天再来。', blocking: false }
     case 'NO_CANDIDATES':
       return { text: '这一类的候选是空的。可以先同步，或去豆瓣标记一些。', blocking: true }
     case 'POOL_EXHAUSTED':
@@ -398,12 +402,20 @@ function renderStage() {
     cardRefs = refs
     const row = document.createElement('div')
     row.className = 'skip-row'
-    const btn = document.createElement('button')
-    btn.type = 'button'
-    btn.className = 'link'
-    btn.textContent = skipArmed ? '确认跳过这一部？' : '不想看？跳过这一部'
-    btn.addEventListener('click', skip)
-    row.append(btn)
+
+    if (canSkip(state.records, state.active)) {
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'link'
+      btn.textContent = skipArmed ? '确认跳过这一部？' : '不想看？跳过这一部（今天还剩 1 次）'
+      btn.addEventListener('click', skip)
+      row.append(btn)
+    } else {
+      const note = document.createElement('span')
+      note.className = 'skip-note'
+      note.textContent = '今天已经跳过 1 次了，明天再来。'
+      row.append(note)
+    }
 
     stage.replaceChildren(card, row)
     ensureIntro(pending)

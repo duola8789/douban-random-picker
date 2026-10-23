@@ -1,9 +1,9 @@
 {
   "name": "douban-random-picker",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
-  "description": "Chrome MV3 扩展：从个人豆瓣收藏中随机抽一个",
+  "description": "少一点选择，多一点开始。从个人豆瓣收藏里抽一个。",
   "scripts": {
     "test": "node --test tests/*.test.js",
     "check": "node --check src/background/service-worker.js && node --check src/background/sync.js && node --check src/content/content.js && node --check src/sidepanel/sidepanel.js",

@@ -188,6 +188,11 @@ button:disabled {
   font-size: 12px;
 }
 
+.skip-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 /* ---------------------------------------------------------------- 舞台 */
 
 .stage {

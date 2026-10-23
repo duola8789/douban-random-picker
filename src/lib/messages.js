@@ -54,5 +54,7 @@ export const ERROR = {
   POOL_EXHAUSTED: 'POOL_EXHAUSTED',
   /** 该类别已有待看条目，必须先处理掉才能再抽 */
   PENDING_EXISTS: 'PENDING_EXISTS',
+  /** 今天的跳过次数已用完 */
+  SKIP_LIMIT: 'SKIP_LIMIT',
   SYNCING: 'SYNCING',
 }

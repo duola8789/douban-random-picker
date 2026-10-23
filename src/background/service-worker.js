@@ -11,6 +11,7 @@ import {
   pendingFor,
   resolveRecord,
   clearResolved,
+  canSkip,
 } from '../lib/history.js'
 import { readAll, writeSettings, writeRecords } from './storage.js'
 import {
@@ -103,9 +104,17 @@ async function handlePick(category) {
   return { ok: true, item: result.item, record, records: next.slice(-RECENT_RECORDS) }
 }
 
-/** 跳过当前待看：记录保留，只是改判状态 */
+/** 跳过当前待看：记录保留，只是改判状态。每天每类有次数上限。 */
 async function handleSkip(key) {
   const { records } = await readAll()
+
+  const target = records.find((r) => r.key === key && r.state === 'pending')
+  if (!target) return { ok: false, error: { code: ERROR.PENDING_EXISTS } }
+
+  if (!canSkip(records, target.category)) {
+    return { ok: false, error: { code: ERROR.SKIP_LIMIT } }
+  }
+
   const next = resolveRecord(records, key, 'skipped')
   await writeRecords(next)
   return { ok: true, records: next.slice(-RECENT_RECORDS) }
