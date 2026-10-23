@@ -10,28 +10,32 @@
     <header class="bar">
       <div class="brand">
         <h1>豆瓣随机</h1>
-        <button id="help" class="icon-btn" type="button" title="怎么用、数据从哪来" aria-label="帮助">
-          ?
-        </button>
+        <button id="help" class="icon-btn" type="button" title="这是什么" aria-label="帮助">?</button>
       </div>
-      <button id="sync" class="ghost" type="button" title="同步当前选择的范围">同步</button>
+      <button id="sync" class="ghost" type="button">同步</button>
     </header>
 
-    <section class="scopes" aria-label="候选范围">
-      <label class="chip"><input type="checkbox" data-cat="movie" /><span>电影</span></label>
-      <label class="chip"><input type="checkbox" data-cat="tv" /><span>剧集</span></label>
-      <label class="chip"><input type="checkbox" data-cat="book" /><span>图书</span></label>
-    </section>
+    <nav class="tabs" role="tablist" aria-label="类别">
+      <button class="tab" type="button" role="tab" data-cat="movie">
+        电影<span class="tab-count"></span>
+      </button>
+      <button class="tab" type="button" role="tab" data-cat="tv">
+        剧集<span class="tab-count"></span>
+      </button>
+      <button class="tab" type="button" role="tab" data-cat="book">
+        图书<span class="tab-count"></span>
+      </button>
+    </nav>
 
     <main id="stage" class="stage" aria-live="polite"></main>
 
-    <div class="actions">
+    <div class="actions" id="actions">
       <button id="draw" class="primary" type="button">抽一个</button>
     </div>
 
     <section class="history">
       <div class="history-head">
-        <h2>抽过的</h2>
+        <h2>记录</h2>
         <div class="history-tools">
           <button id="reset-account" class="link" type="button">更换账号</button>
           <button id="clear-history" class="link" type="button">清空</button>
@@ -43,31 +47,32 @@
     <div id="toast" class="toast" hidden></div>
 
     <div id="help-panel" class="overlay" hidden>
-      <div class="help-card" role="dialog" aria-label="使用说明">
+      <div class="help-card" role="dialog" aria-label="这是什么">
         <header class="help-head">
-          <h2>怎么用</h2>
+          <h2>这是什么</h2>
           <button id="help-close" class="icon-btn" type="button" aria-label="关闭">×</button>
         </header>
-        <p>先在浏览器里登录豆瓣，选好范围，点一下「抽一个」。</p>
 
-        <h3>数据从哪来</h3>
         <p>
-          来自你自己在豆瓣标记的「想看 / 想读」。扩展在豆瓣页面里读取，用的是你已有的登录状态，
-          不碰账号密码，也不保存 cookie。
+          你在豆瓣里存了几百个「想看」，真到要看的时候反而选不出来——列表越长，越难决定。
+          这个工具替你做一次决定：从你自己标记的条目里抽一个，抽到就是它。
         </p>
 
-        <h3>多久更新</h3>
+        <h3>一个类别只有一个待看</h3>
         <p>
-          打开时如果数据超过 24 小时会自动刷新。手动同步最快 10 分钟一次，
-          避免请求太密被豆瓣限流。
+          如果抽完还能一直重抽，等于没做决定。所以某个类别抽中之后，
+          要么去看，要么跳过，才能抽下一个。
         </p>
 
-        <h3>怎么抽</h3>
-        <p>每个类别被选中的概率相同；最近抽过的 20 条不会重复出现。</p>
+        <h3>数据哪里来</h3>
+        <p>
+          来自你自己在豆瓣标记的「想看 / 想读」，用浏览器里已有的登录状态读取。
+          不碰账号密码，不保存 cookie，也不修改你在豆瓣上的任何数据。
+        </p>
 
         <h3>隐私</h3>
         <p>
-          数据只存在你的浏览器里，没有服务器，不上传任何内容。
+          数据只存在你的浏览器里。没有服务器，不上传任何内容。
           非官方工具，与豆瓣无关。
         </p>
       </div>

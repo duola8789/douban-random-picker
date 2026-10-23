@@ -1,19 +1,22 @@
 /**
  * 侧边栏界面。
  *
- * 只负责展示与发消息；长任务都在 content script / service worker 里，
- * 所以侧边栏关掉不会打断同步。
+ * 三个类别各是一个页签，抽取、待看、记录都按类别独立。
+ * 只负责展示与发消息；长任务都在 content script / service worker 里。
  */
 
 import { UI, SW_EVENT } from '../lib/messages.js'
-import { dimensionsForScopes, isFresh } from '../lib/cache.js'
+import { allDimensionKeys, isFresh } from '../lib/cache.js'
+import { pendingFor } from '../lib/history.js'
 
 const $ = (sel) => document.querySelector(sel)
 
 const el = {
   stage: $('#stage'),
   draw: $('#draw'),
+  actions: $('#actions'),
   sync: $('#sync'),
+  tabs: [...document.querySelectorAll('.tab')],
   historyList: $('#history-list'),
   clearHistory: $('#clear-history'),
   resetAccount: $('#reset-account'),
@@ -21,7 +24,6 @@ const el = {
   help: $('#help'),
   helpPanel: $('#help-panel'),
   helpClose: $('#help-close'),
-  scopes: [...document.querySelectorAll('.scopes input')],
 }
 
 const CATEGORY_LABEL = { movie: '电影', tv: '剧集', book: '图书' }
@@ -29,24 +31,26 @@ const CATEGORY_LABEL = { movie: '电影', tv: '剧集', book: '图书' }
 const state = {
   settings: null,
   caches: {},
-  history: [],
-  item: null,
+  records: [],
+  active: 'movie',
   intro: '',
   introLoading: false,
+  introKey: null,
   introExpanded: false,
   syncing: false,
+  drawing: false,
   needsSetup: false,
   probeReason: null,
   toast: null,
   blocking: null,
   progress: null,
   cooldownUntil: 0,
-  hasDrawn: false,
 }
 
-/** 当前卡片的 DOM 引用，用于只更新简介而不重播动画 */
 let cardRefs = null
 let cooldownTimer = null
+let skipArmed = false
+let skipTimer = null
 
 const LOGIN_URL = 'https://www.douban.com/'
 
@@ -72,9 +76,9 @@ async function boot() {
 
   state.settings = res.settings
   state.caches = res.caches ?? {}
-  state.history = res.history ?? []
+  state.records = res.records ?? []
+  state.active = res.settings?.category ?? 'movie'
   state.syncing = Boolean(res.syncing)
-  syncScopeInputs()
   render()
 
   if (!state.settings.uid) await detectUid()
@@ -84,7 +88,6 @@ async function boot() {
   render()
 }
 
-/** 首次使用：尝试自动拿到 uid，失败则要求手动填写 */
 async function detectUid() {
   const probe = await send({ type: UI.PROBE_LOGIN })
   const uid = probe?.login?.ok ? probe.login.uid : ''
@@ -102,15 +105,13 @@ async function detectUid() {
   state.probeReason = null
 }
 
-/** 打开侧边栏时：缓存过期就后台刷新，先用旧数据渲染 */
 async function ensureFresh() {
-  const wanted = dimensionsForScopes(state.settings.scopes)
-  const stale = wanted.filter((key) => !isFresh(state.caches[key]))
+  const stale = allDimensionKeys().filter((key) => !isFresh(state.caches[key]))
   if (stale.length === 0) return
   await runSync({ force: false })
 }
 
-async function runSync({ force = false, all = false } = {}) {
+async function runSync({ force = false } = {}) {
   if (state.syncing) return
   state.syncing = true
   state.progress = null
@@ -118,7 +119,7 @@ async function runSync({ force = false, all = false } = {}) {
   state.toast = null
   render()
 
-  const res = await send({ type: UI.SYNC, force, all })
+  const res = await send({ type: UI.SYNC, force })
 
   state.syncing = false
   state.progress = null
@@ -129,23 +130,16 @@ async function runSync({ force = false, all = false } = {}) {
   return res
 }
 
-/** 把错误分成两类：挡住整个舞台的，和只提示一下的 */
 function applyError(error, scope = '同步') {
   logFailure(scope, error)
   const notice = noticeFor(error)
   if (!notice) return
-
   if (notice.blocking) state.blocking = notice
   else state.toast = notice.text
-
   if (notice.cooldownMs) setCooldown(notice.cooldownMs)
 }
 
-/**
- * 结构化地记一条失败日志。
- * 直接把对象丢给 console 只会显示 [object Object]，排查时等于没有信息，
- * 所以把 code / reason 拼进消息文本里。
- */
+/** 直接把对象丢给 console 只会显示 [object Object]，把关键字段拼进文本 */
 function logFailure(scope, error) {
   const code = error?.code ?? 'NETWORK'
   const reason = error?.reason ? ` reason=${error.reason}` : ''
@@ -157,19 +151,24 @@ async function refreshState() {
   if (!res?.ok) return
   state.settings = res.settings
   state.caches = res.caches ?? {}
-  state.history = res.history ?? []
-  syncScopeInputs()
+  state.records = res.records ?? []
 }
 
+function currentPending() {
+  return pendingFor(state.records, state.active)
+}
+
+// ---------------------------------------------------------------- 抽取
+
 async function draw() {
-  if (state.syncing) return
+  if (state.drawing || currentPending()) return
+  state.drawing = true
   state.blocking = null
   state.toast = null
-  state.drawBusy = true
   render()
 
-  const res = await send({ type: UI.PICK })
-  state.drawBusy = false
+  const res = await send({ type: UI.PICK, category: state.active })
+  state.drawing = false
 
   if (!res?.ok) {
     applyError(res?.error, '抽取')
@@ -177,24 +176,52 @@ async function draw() {
     return
   }
 
-  state.item = res.item
-  state.hasDrawn = true
+  if (Array.isArray(res.records)) state.records = res.records
+  state.introKey = null
   state.intro = ''
-  state.introLoading = true
   state.introExpanded = false
-  if (Array.isArray(res.history)) state.history = res.history
   render()
-  loadIntro(res.item)
+}
+
+async function skip() {
+  const pending = currentPending()
+  if (!pending) return
+
+  if (!skipArmed) {
+    skipArmed = true
+    clearTimeout(skipTimer)
+    skipTimer = setTimeout(() => {
+      skipArmed = false
+      render()
+    }, 3000)
+    render()
+    return
+  }
+
+  skipArmed = false
+  const res = await send({ type: UI.SKIP, key: pending.key })
+  if (res?.ok) {
+    state.records = res.records ?? state.records
+    state.introKey = null
+    state.intro = ''
+  }
+  render()
 }
 
 /** 抽中后补简介：收藏接口不返回 intro，要单独请求一次详情 */
-async function loadIntro(item) {
-  const res = await send({ type: UI.DETAIL, subjectId: item.subjectId, category: item.category })
-  if (state.item?.key !== item.key) return // 已经换了新的一条
-
-  state.introLoading = false
-  state.intro = res?.detail?.intro?.trim?.() ?? ''
+function ensureIntro(record) {
+  if (!record || state.introKey === record.key) return
+  state.introKey = record.key
+  state.intro = ''
+  state.introLoading = true
   fillIntro()
+
+  send({ type: UI.DETAIL, subjectId: record.subjectId, category: record.category }).then((res) => {
+    if (state.introKey !== record.key) return
+    state.introLoading = false
+    state.intro = res?.detail?.intro?.trim?.() ?? ''
+    fillIntro()
+  })
 }
 
 function fillIntro() {
@@ -214,13 +241,13 @@ function fillIntro() {
     slot.hidden = true
     return
   }
+  slot.hidden = false
 
   const p = document.createElement('p')
   p.className = state.introExpanded ? 'intro' : 'intro clamped'
   p.textContent = state.intro
   slot.append(p)
 
-  // 只有真的被截断时才显示展开按钮
   if (p.scrollHeight > p.clientHeight + 2 || state.introExpanded) {
     const toggle = document.createElement('button')
     toggle.type = 'button'
@@ -251,36 +278,27 @@ function noticeFor(error) {
       }
     }
     case 'NO_DOUBAN_TAB':
-      return {
-        text: '没能打开豆瓣页面。请先手动打开一个豆瓣页面，再回来同步。',
-        blocking: true,
-      }
+      return { text: '没能打开豆瓣页面。请先手动打开一个豆瓣页面，再回来同步。', blocking: true }
     case 'RATE_LIMITED':
       return { text: '豆瓣请求过于频繁，已暂停。请过一会儿再试。', blocking: false }
     case 'TOO_SOON':
       return {
-        text: '刚同步过，稍等一会儿才能再同步。已有的数据没有受影响。',
+        text: '刚同步过，稍后再试。已有的数据没有受影响。',
         blocking: false,
         cooldownMs: error?.retryAfterMs ?? 0,
       }
-    case 'NO_SCOPE':
-      return { text: '至少选择一类才能抽。', blocking: false }
+    case 'PENDING_EXISTS':
+      return { text: '这一类还有没处理的片子，先看完或跳过再抽。', blocking: false }
     case 'NO_CANDIDATES':
-      return {
-        text: '选中的范围里还没有可抽的条目。可以先同步，或去豆瓣标记一些。',
-        blocking: true,
-      }
+      return { text: '这一类的候选是空的。可以先同步，或去豆瓣标记一些。', blocking: true }
     case 'POOL_EXHAUSTED':
       return {
-        text: '最近的都抽过一遍了。清空历史可以重新开始。',
-        action: { label: '清空历史', kind: 'clear' },
+        text: '这一类最近都抽过了，先清空记录再试。',
+        action: { label: '清空记录', kind: 'clear' },
         blocking: true,
       }
     default:
-      return {
-        text: `出了点问题（${code}），请稍后重试。`,
-        blocking: false,
-      }
+      return { text: `出了点问题（${code}），请稍后重试。`, blocking: false }
   }
 }
 
@@ -305,6 +323,7 @@ function updateSyncButton() {
   if (state.syncing) {
     el.sync.textContent = '同步中'
     el.sync.disabled = true
+    el.sync.title = ''
     return
   }
   if (left > 0) {
@@ -313,20 +332,26 @@ function updateSyncButton() {
     const ss = String(s % 60).padStart(2, '0')
     el.sync.textContent = `同步 ${mm}:${ss}`
     el.sync.disabled = true
+    el.sync.title = '刚同步过，稍后再试'
     return
   }
   el.sync.textContent = '同步'
-  el.sync.disabled = state.syncing
+  el.sync.disabled = false
+  el.sync.title = '同步你在豆瓣的标记'
 }
 
 // ---------------------------------------------------------------- 渲染
 
 function render() {
   renderToast()
+  renderTabs()
   renderStage()
   renderHistory()
-  el.draw.disabled = state.syncing || Boolean(state.drawBusy)
-  el.draw.textContent = state.hasDrawn || state.item ? '再抽一个' : '抽一个'
+
+  const canDraw = !currentPending() && !state.needsSetup && !state.blocking && !state.syncing
+  el.actions.hidden = !canDraw
+  el.draw.disabled = state.drawing
+  el.draw.textContent = '抽一个'
   updateSyncButton()
 }
 
@@ -340,8 +365,21 @@ function renderToast() {
   }
 }
 
+function renderTabs() {
+  const counts = countByCategory()
+  for (const tab of el.tabs) {
+    const cat = tab.dataset.cat
+    const on = cat === state.active
+    tab.classList.toggle('active', on)
+    tab.setAttribute('aria-selected', String(on))
+    const badge = tab.querySelector('.tab-count')
+    badge.textContent = counts[cat] ? String(counts[cat]) : ''
+  }
+}
+
 function renderStage() {
   const stage = el.stage
+  const pending = currentPending()
 
   if (state.needsSetup) {
     cardRefs = null
@@ -355,17 +393,26 @@ function renderStage() {
     return
   }
 
-  if (state.item) {
-    const card = cardView(state.item)
-    cardRefs = card.refs
-    stage.replaceChildren(card.el)
-    fillIntro()
+  if (pending) {
+    const { el: card, refs } = cardView(pending)
+    cardRefs = refs
+    const row = document.createElement('div')
+    row.className = 'skip-row'
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'link'
+    btn.textContent = skipArmed ? '确认跳过这一部？' : '不想看？跳过这一部'
+    btn.addEventListener('click', skip)
+    row.append(btn)
+
+    stage.replaceChildren(card, row)
+    ensureIntro(pending)
     return
   }
 
   cardRefs = null
 
-  if (state.syncing && countByCategory().total === 0) {
+  if (state.syncing && countByCategory()[state.active] === 0) {
     const skeleton = document.createElement('div')
     skeleton.className = 'skeleton'
     stage.replaceChildren(skeleton)
@@ -472,82 +519,74 @@ function placeholderView() {
     hint.textContent = state.progress
       ? `已取回 ${state.progress.fetched} / ${state.progress.total} 条`
       : '正在读取你在豆瓣的标记…'
+  } else if (countByCategory()[state.active] === 0) {
+    title.textContent = '这一类还没有候选'
+    hint.textContent = '点右上角「同步」拉一次，或者去豆瓣标记一些。'
   } else {
-    const counts = countByCategory()
-    if (counts.total > 0) {
-      title.textContent = '准备好了'
-      hint.textContent = '点下面的按钮，从这些条目里抽一个。'
-      wrap.append(title, hint, countsView(counts))
-      return wrap
-    }
-    title.textContent = '还没有候选'
-    hint.textContent = '点右上角「同步」拉一次你在豆瓣的标记。'
+    title.textContent = '准备好了'
+    hint.textContent = `从「${CATEGORY_LABEL[state.active]}」里抽一个。`
   }
 
   wrap.append(title, hint)
   return wrap
 }
 
-function countsView(counts) {
-  const row = document.createElement('div')
-  row.className = 'counts'
-  for (const [cat, label] of Object.entries(CATEGORY_LABEL)) {
-    const span = document.createElement('span')
-    span.append(label + ' ')
-    const b = document.createElement('b')
-    b.textContent = String(counts[cat] ?? 0)
-    span.append(b)
-    row.append(span)
+function countByCategory() {
+  const counts = { movie: 0, tv: 0, book: 0 }
+  for (const entry of Object.values(state.caches)) {
+    counts.movie += entry?.byCategory?.movie ?? 0
+    counts.tv += entry?.byCategory?.tv ?? 0
+    counts.book += entry?.byCategory?.book ?? 0
   }
-  return row
+  return counts
 }
 
-function cardView(item) {
+// ---------------------------------------------------------------- 卡片
+
+function cardView(record) {
   const card = document.createElement('article')
   card.className = 'card'
 
-  // 封面
   const cover = document.createElement('div')
   cover.className = 'card-cover'
-  if (item.coverUrl) {
+  if (record.coverUrl) {
     const img = document.createElement('img')
-    img.src = item.coverUrl
-    img.alt = item.title
+    img.src = record.coverUrl
+    img.alt = record.title
     img.loading = 'lazy'
-    img.addEventListener('error', () => cover.replaceChildren(noCover(item.category)))
+    img.addEventListener('error', () => cover.replaceChildren(noCover(record.category)))
     cover.append(img)
   } else {
-    cover.append(noCover(item.category))
+    cover.append(noCover(record.category))
   }
 
-  // 正文
   const body = document.createElement('div')
   body.className = 'card-body'
 
   const title = document.createElement('h2')
   title.className = 'card-title'
-  title.textContent = item.title
+  title.textContent = record.title
 
   const meta = document.createElement('div')
   meta.className = 'card-meta'
   const pill = document.createElement('span')
   pill.className = 'pill'
-  pill.textContent = CATEGORY_LABEL[item.category] ?? '条目'
+  pill.textContent = CATEGORY_LABEL[record.category] ?? '条目'
   meta.append(pill)
-  if (item.year) meta.append(tag(item.year))
-  if (typeof item.doubanRating === 'number') {
+  if (record.year) meta.append(tag(record.year))
+  if (typeof record.doubanRating === 'number') {
     const score = document.createElement('span')
     score.className = 'rating-douban'
-    score.textContent = `豆瓣 ${item.doubanRating.toFixed(1)}`
+    score.textContent = `豆瓣 ${record.doubanRating.toFixed(1)}`
     meta.append(score)
   }
 
   body.append(title, meta)
 
-  if (item.subtitle) {
+  if (record.subtitle) {
     const sub = document.createElement('p')
     sub.className = 'subtitle'
-    sub.textContent = item.subtitle
+    sub.textContent = record.subtitle
     body.append(sub)
   }
 
@@ -555,25 +594,23 @@ function cardView(item) {
   introSlot.className = 'intro-wrap'
   body.append(introSlot)
 
-  // 我的评分 / 短评：缺失时整块不渲染
-  if (typeof item.myRating === 'number' || item.myComment) {
+  if (typeof record.myRating === 'number' || record.myComment) {
     const divider = document.createElement('div')
     divider.className = 'divider'
     body.append(divider)
 
     const mine = document.createElement('div')
     mine.className = 'my'
-    if (typeof item.myRating === 'number') {
+    if (typeof record.myRating === 'number') {
       const stars = document.createElement('div')
       stars.className = 'my-rating'
-      stars.textContent = '★'.repeat(item.myRating) + '☆'.repeat(Math.max(0, 5 - item.myRating))
-      stars.title = `我的评分 ${item.myRating}`
+      stars.textContent = '★'.repeat(record.myRating) + '☆'.repeat(Math.max(0, 5 - record.myRating))
       mine.append(stars)
     }
-    if (item.myComment) {
+    if (record.myComment) {
       const comment = document.createElement('p')
       comment.className = 'my-comment'
-      comment.textContent = `「${item.myComment}」`
+      comment.textContent = `「${record.myComment}」`
       mine.append(comment)
     }
     body.append(mine)
@@ -583,11 +620,11 @@ function cardView(item) {
   foot.className = 'card-foot'
   const source = document.createElement('span')
   source.className = 'source'
-  source.textContent = `来自「${sourceLabel(item)}」`
+  source.textContent = `来自「${markLabel(record)}」`
   const open = document.createElement('button')
   open.type = 'button'
-  open.textContent = '去豆瓣标记'
-  open.addEventListener('click', () => chrome.tabs.create({ url: item.url }))
+  open.textContent = '去豆瓣看看'
+  open.addEventListener('click', () => chrome.tabs.create({ url: record.url }))
   foot.append(source, open)
   body.append(foot)
 
@@ -595,15 +632,27 @@ function cardView(item) {
   return { el: card, refs: { introSlot } }
 }
 
-function sourceLabel(item) {
-  const book = item.category === 'book'
-  switch (item.status) {
+function markLabel(record) {
+  const book = record.category === 'book'
+  switch (record.markStatus) {
     case 'doing':
       return book ? '在读' : '在看'
     case 'done':
       return book ? '读过' : '看过'
     default:
       return book ? '想读' : '想看'
+  }
+}
+
+function stateLabel(record) {
+  const book = record.category === 'book'
+  switch (record.state) {
+    case 'done':
+      return book ? '读过' : '看过'
+    case 'skipped':
+      return '跳过'
+    default:
+      return book ? '待读' : '待看'
   }
 }
 
@@ -625,23 +674,27 @@ function tag(text) {
   return span
 }
 
+// ---------------------------------------------------------------- 记录
+
 function renderHistory() {
   const list = el.historyList
   list.replaceChildren()
 
-  if (!state.history.length) {
+  const rows = state.records.filter((r) => r.category === state.active).slice(-30).reverse()
+
+  if (!rows.length) {
     const li = document.createElement('li')
     li.className = 'empty-line'
-    li.textContent = '还没有抽过。'
+    li.textContent = `还没有抽过${CATEGORY_LABEL[state.active]}。`
     list.append(li)
     return
   }
 
-  for (const record of state.history) {
+  for (const record of rows) {
     const li = document.createElement('li')
 
     const dot = document.createElement('span')
-    dot.className = `dot ${record.category ?? ''}`
+    dot.className = `dot ${record.category}`
 
     const main = document.createElement('div')
     main.className = 'row-main'
@@ -655,10 +708,15 @@ function renderHistory() {
 
     const sub = document.createElement('span')
     sub.className = 'row-sub'
-    sub.textContent = `${CATEGORY_LABEL[record.category] ?? '条目'} · ${formatTime(record.drawnAt)}`
+    sub.textContent = formatTime(record.drawnAt)
 
     main.append(title, sub)
-    li.append(dot, main)
+
+    const chip = document.createElement('span')
+    chip.className = `state state-${record.state}`
+    chip.textContent = stateLabel(record)
+
+    li.append(dot, main, chip)
     list.append(li)
   }
 }
@@ -669,43 +727,26 @@ function formatTime(ts) {
   const now = new Date()
   const hh = String(d.getHours()).padStart(2, '0')
   const mm = String(d.getMinutes()).padStart(2, '0')
-  const sameDay = d.toDateString() === now.toDateString()
-  if (sameDay) return `今天 ${hh}:${mm}`
+  if (d.toDateString() === now.toDateString()) return `今天 ${hh}:${mm}`
   const mo = String(d.getMonth() + 1).padStart(2, '0')
   const dd = String(d.getDate()).padStart(2, '0')
   return `${mo}-${dd} ${hh}:${mm}`
 }
 
-function countByCategory() {
-  const counts = { movie: 0, tv: 0, book: 0, total: 0 }
-  for (const entry of Object.values(state.caches)) {
-    counts.movie += entry?.byCategory?.movie ?? 0
-    counts.tv += entry?.byCategory?.tv ?? 0
-    counts.book += entry?.byCategory?.book ?? 0
-    counts.total += entry?.count ?? 0
-  }
-  return counts
-}
-
 // ---------------------------------------------------------------- 事件
 
-function syncScopeInputs() {
-  for (const input of el.scopes) {
-    input.checked = Boolean(state.settings?.scopes?.[input.dataset.cat])
-  }
-}
-
-for (const input of el.scopes) {
-  input.addEventListener('change', async () => {
-    const scopes = {}
-    for (const i of el.scopes) scopes[i.dataset.cat] = i.checked
-    state.settings.scopes = scopes
-    state.syncing = true
+for (const tab of el.tabs) {
+  tab.addEventListener('click', async () => {
+    if (tab.dataset.cat === state.active) return
+    state.active = tab.dataset.cat
+    state.introKey = null
+    state.intro = ''
+    state.introExpanded = false
+    state.blocking = null
+    state.toast = null
+    skipArmed = false
     render()
-    const res = await send({ type: UI.SET_SCOPES, scopes })
-    if (res?.settings) state.settings = { ...state.settings, ...res.settings }
-    if (!res?.ok) state.syncing = false
-    render()
+    await send({ type: UI.SET_CATEGORY, category: state.active })
   })
 }
 
@@ -715,8 +756,6 @@ el.sync.addEventListener('click', () => runSync({ force: true }))
 el.resetAccount.addEventListener('click', async () => {
   await send({ type: UI.SET_UID, uid: '' })
   state.settings.uid = ''
-  state.item = null
-  state.hasDrawn = false
   state.toast = null
   state.blocking = null
   state.probeReason = null
@@ -726,21 +765,21 @@ el.resetAccount.addEventListener('click', async () => {
   render()
 })
 
-let clearArmed = false
+let clearArmed2 = false
 el.clearHistory.addEventListener('click', async () => {
-  if (!clearArmed) {
-    clearArmed = true
+  if (!clearArmed2) {
+    clearArmed2 = true
     el.clearHistory.textContent = '确认清空？'
     setTimeout(() => {
-      clearArmed = false
+      clearArmed2 = false
       el.clearHistory.textContent = '清空'
     }, 3000)
     return
   }
-  clearArmed = false
+  clearArmed2 = false
   el.clearHistory.textContent = '清空'
-  await send({ type: UI.CLEAR_HISTORY })
-  state.history = []
+  const res = await send({ type: UI.CLEAR_HISTORY })
+  if (res?.ok) state.records = res.records ?? []
   render()
 })
 
@@ -763,8 +802,8 @@ async function runNoticeAction(kind) {
     return
   }
   if (kind === 'clear') {
-    await send({ type: UI.CLEAR_HISTORY })
-    state.history = []
+    const res = await send({ type: UI.CLEAR_HISTORY })
+    if (res?.ok) state.records = res.records ?? []
     state.blocking = null
     render()
   }
@@ -774,8 +813,8 @@ chrome.runtime.onMessage.addListener((message) => {
   if (message?.type === SW_EVENT.SYNC_PROGRESS) {
     state.progress = { fetched: message.fetched ?? 0, total: message.total ?? 0 }
     state.syncing = true
-    if (!state.item && !state.blocking) renderStage()
-    el.draw.disabled = true
+    if (!currentPending() && !state.blocking) renderStage()
+    el.actions.hidden = true
     el.sync.disabled = true
     return
   }

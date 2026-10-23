@@ -36,7 +36,7 @@ test('未登录时同步返回 AUTH_REQUIRED 且不写入缓存', async () => {
 })
 
 test('未登录时抽取给出「没有候选」而不是假装成功', async () => {
-  const res = await env.uiSend({ type: 'ui:pick' })
+  const res = await env.uiSend({ type: 'ui:pick', category: 'movie' })
   assert.equal(res.ok, false)
   assert.equal(res.error.code, 'NO_CANDIDATES')
 })

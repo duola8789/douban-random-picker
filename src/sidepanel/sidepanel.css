@@ -137,40 +137,55 @@ button:disabled {
   background: #275a42;
 }
 
-/* ---------------------------------------------------------------- 类别 */
+/* ---------------------------------------------------------------- 类别页签 */
 
-.scopes {
+.tabs {
   display: flex;
   gap: 6px;
 }
 
-.chip {
+.tab {
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
   padding: 7px 4px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: #fffdf8;
   color: var(--muted);
   font-size: 13px;
-  cursor: pointer;
-  user-select: none;
   transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 
-.chip:has(input:checked) {
+.tab:hover:not(.active) {
+  border-color: var(--muted);
+  color: var(--ink);
+}
+
+.tab.active {
   border-color: var(--accent);
   background: var(--accent-soft);
   color: var(--accent);
+  font-weight: 600;
 }
 
-.chip input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
+.tab-count {
+  margin-left: 4px;
+  font-size: 11px;
+  opacity: 0.65;
+  font-weight: 400;
+}
+
+.actions[hidden] {
+  display: none;
+}
+
+.skip-row {
+  display: flex;
+  justify-content: center;
+  padding-top: 2px;
+}
+
+.skip-row .link {
+  font-size: 12px;
 }
 
 /* ---------------------------------------------------------------- 舞台 */
@@ -531,6 +546,29 @@ button:disabled {
 .row-sub {
   color: var(--muted);
   font-size: 11px;
+}
+
+.state {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  margin-top: 2px;
+}
+
+.state-pending {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.state-skipped {
+  background: #f0ece2;
+  color: var(--muted);
+}
+
+.state-done {
+  background: #e8f0e6;
+  color: #4d7a52;
 }
 
 .empty-line {

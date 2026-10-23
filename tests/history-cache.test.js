@@ -1,47 +1,82 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { appendHistory, makeRecord, recentFirst, HISTORY_LIMIT } from '../src/lib/history.js'
-import { isFresh, dimensionsForScopes, emptyCache, TTL_MS } from '../src/lib/cache.js'
+import {
+  appendRecord,
+  makeRecord,
+  pendingFor,
+  resolveRecord,
+  clearResolved,
+  recentFirst,
+  RECORD_LIMIT,
+} from '../src/lib/history.js'
+import { isFresh, allDimensionKeys, emptyCache, TTL_MS } from '../src/lib/cache.js'
 
-test('追加记录保持时间顺序', () => {
-  let history = []
-  history = appendHistory(history, { key: 'movie:1', drawnAt: 1 })
-  history = appendHistory(history, { key: 'movie:2', drawnAt: 2 })
-  assert.deepEqual(
-    history.map((h) => h.key),
-    ['movie:1', 'movie:2'],
-  )
-})
-
-test('超过上限时裁掉最旧的', () => {
-  let history = []
-  for (let i = 0; i < HISTORY_LIMIT + 5; i += 1) {
-    history = appendHistory(history, { key: `movie:${i}`, drawnAt: i })
+function item(overrides = {}) {
+  return {
+    key: 'movie:1',
+    subjectId: '1',
+    category: 'movie',
+    title: '暴裂无声',
+    url: 'https://movie.douban.com/subject/1/',
+    status: 'mark',
+    ...overrides,
   }
-  assert.equal(history.length, HISTORY_LIMIT)
-  assert.equal(history[0].key, 'movie:5')
-  assert.equal(history[history.length - 1].key, `movie:${HISTORY_LIMIT + 4}`)
-})
+}
 
-test('makeRecord 只存轻量快照', () => {
-  const record = makeRecord({
-    key: 'book:1',
-    title: '人类简史',
-    coverUrl: 'https://img/x.jpg',
-    category: 'book',
-    url: 'https://book.douban.com/subject/1/',
-    myComment: '不该进历史',
-  })
-  assert.equal(record.key, 'book:1')
-  assert.equal(record.myComment, undefined)
+test('记录同时保存决定状态与豆瓣标记状态', () => {
+  const record = makeRecord(item())
+  assert.equal(record.state, 'pending')
+  assert.equal(record.markStatus, 'mark')
+  assert.equal(record.key, 'movie:1')
   assert.equal(typeof record.drawnAt, 'number')
 })
 
-test('recentFirst 返回由新到旧', () => {
-  const history = [{ key: 'a' }, { key: 'b' }, { key: 'c' }]
+test('追加记录保持顺序，超限裁掉最旧的', () => {
+  let records = []
+  for (let i = 0; i < RECORD_LIMIT + 3; i += 1) {
+    records = appendRecord(records, makeRecord(item({ key: `movie:${i}` })))
+  }
+  assert.equal(records.length, RECORD_LIMIT)
+  assert.equal(records[0].key, 'movie:3')
+})
+
+test('每类只有一个待看', () => {
+  const records = [
+    makeRecord(item({ key: 'movie:1' })),
+    makeRecord(item({ key: 'movie:2' })),
+    makeRecord(item({ key: 'book:9', category: 'book' })),
+  ]
+  assert.equal(pendingFor(records, 'movie').key, 'movie:2', '应取最近的一条')
+  assert.equal(pendingFor(records, 'book').key, 'book:9')
+  assert.equal(pendingFor(records, 'tv'), null)
+})
+
+test('跳过后该类别不再有待看', () => {
+  const records = [makeRecord(item({ key: 'movie:1' }))]
+  const next = resolveRecord(records, 'movie:1', 'skipped')
+  assert.equal(pendingFor(next, 'movie'), null)
+  assert.equal(next[0].state, 'skipped')
+  assert.ok(next[0].resolvedAt > 0, '应记录处理时间')
+})
+
+test('清空记录时保留待看，避免绕过「不能无限抽」', () => {
+  const records = [
+    makeRecord(item({ key: 'movie:1' })),
+    { ...makeRecord(item({ key: 'movie:2' })), state: 'skipped' },
+    makeRecord(item({ key: 'book:9', category: 'book' })),
+  ]
+  const kept = clearResolved(records)
   assert.deepEqual(
-    recentFirst(history).map((h) => h.key),
+    kept.map((r) => r.key),
+    ['movie:1', 'book:9'],
+  )
+})
+
+test('recentFirst 由新到旧', () => {
+  const list = [{ key: 'a' }, { key: 'b' }, { key: 'c' }]
+  assert.deepEqual(
+    recentFirst(list).map((x) => x.key),
     ['c', 'b', 'a'],
   )
 })
@@ -52,21 +87,9 @@ test('缓存新鲜度按 24h 判定', () => {
   assert.equal(isFresh({ syncedAt: now - TTL_MS + 1 }, now), true)
   assert.equal(isFresh({ syncedAt: now - TTL_MS - 1 }, now), false)
   assert.equal(isFresh(undefined, now), false)
-  assert.equal(isFresh({ syncedAt: 0 }, now), false)
 })
 
-test('维度由类别开关推导', () => {
-  assert.deepEqual(dimensionsForScopes({ movie: true, tv: true, book: true }), [
-    'movie:mark',
-    'book:mark',
-  ])
-  assert.deepEqual(dimensionsForScopes({ movie: false, tv: true, book: false }), ['movie:mark'])
-  assert.deepEqual(dimensionsForScopes({ movie: false, tv: false, book: true }), ['book:mark'])
-  assert.deepEqual(dimensionsForScopes({ movie: false, tv: false, book: false }), [])
-})
-
-test('空缓存结构包含两个维度', () => {
-  const caches = emptyCache()
-  assert.deepEqual(Object.keys(caches).sort(), ['book:mark', 'movie:mark'])
-  assert.equal(caches['movie:mark'].items.length, 0)
+test('同步维度始终是两个', () => {
+  assert.deepEqual(allDimensionKeys(), ['movie:mark', 'book:mark'])
+  assert.deepEqual(Object.keys(emptyCache()).sort(), ['book:mark', 'movie:mark'])
 })

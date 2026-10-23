@@ -6,7 +6,7 @@
  */
 
 import { CS, FROM_CS, SW_EVENT, ERROR } from '../lib/messages.js'
-import { DIMENSIONS, dimensionsForScopes, isFresh } from '../lib/cache.js'
+import { DIMENSIONS, allDimensionKeys, isFresh } from '../lib/cache.js'
 import { CONFIG } from '../lib/config.js'
 import { cooldownRemaining } from '../lib/cooldown.js'
 import { normalizeInterests } from '../lib/model.js'
@@ -202,12 +202,13 @@ export async function runSync(options = {}) {
   return inFlight
 }
 
-async function doSync({ force = false, all = false } = {}) {
+async function doSync({ force = false } = {}) {
   const { settings, caches } = await readAll()
 
   if (!settings.uid) return { ok: false, error: { code: ERROR.NO_UID } }
 
-  const wanted = all ? DIMENSIONS.map((d) => d.key) : dimensionsForScopes(settings.scopes)
+  // 三个类别始终可用，同步时两个维度都拉
+  const wanted = allDimensionKeys()
   const targets = force ? wanted : wanted.filter((key) => !isFresh(caches[key]))
   if (targets.length === 0) return { ok: true, skipped: true, dimensions: [] }
 
