@@ -23,13 +23,16 @@
 ## 开发
 
 ```bash
-npm test        # 纯逻辑单测（抽取算法、去重窗口、冷却期、归一化、缓存判定）
+npm test        # 45 个用例：纯逻辑单测 + 端到端（假 chrome 环境跑真实的 SW 与 content script）
 npm run check   # 语法检查
 node scripts/verify.mjs   # 静态自检：manifest 引用、权限、import、禁用 API
 npm run verify  # 上面三件事一起跑
 npm run icons   # 重新生成扩展图标（不依赖图形库）
 npm run package # 打包成可上传 Chrome Web Store 的 zip
 ```
+
+`tests/harness/env.js` 是一个假的 `chrome.*` 环境，它让真实的后台脚本与
+content script 能在 Node 里跑完整链路，不依赖浏览器和豆瓣账号。
 
 没有构建步骤。源码是原生 ES Module，改完直接在 `chrome://extensions` 点刷新即可。
 
