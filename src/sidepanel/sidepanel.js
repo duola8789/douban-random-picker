@@ -630,7 +630,10 @@ function cardView(record) {
     score.textContent = `豆瓣 ${record.doubanRating.toFixed(1)}`
     meta.append(score)
   }
-  meta.append(renderTag(sourceTag(record)))
+  const from = document.createElement('span')
+  from.className = 'from-label'
+  from.textContent = '来自'
+  meta.append(from, renderTag(sourceTag(record)))
 
   info.append(title, meta)
 

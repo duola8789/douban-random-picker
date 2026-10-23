@@ -38,13 +38,12 @@ function str(v) {
   return typeof v === 'string' && v.trim() ? v.trim() : undefined
 }
 
-/** [{name}] -> "甲 / 乙"；限制条数 */
-function names(list, limit = 3) {
+/** [{name}] -> "甲 / 乙"；不截断，展示时由 CSS 限制行数 */
+function names(list) {
   if (!Array.isArray(list)) return undefined
   const out = list
     .map((x) => (typeof x === 'string' ? x : x?.name))
     .filter((x) => typeof x === 'string' && x.trim())
-    .slice(0, limit)
   return out.length ? out.join(' / ') : undefined
 }
 
@@ -85,7 +84,7 @@ export function normalizeInterest(raw) {
     status: str(raw?.status) ?? 'mark',
     // 结构化信息：电影有导演/主演/类型，图书只有 card_subtitle
     directors: names(subject.directors),
-    actors: names(subject.actors, 3),
+    actors: names(subject.actors),
     genres: joined(subject.genres),
     pubdate: first(subject.pubdate) ?? str(subject.release_date),
     // create_time 是 "2018-04-06 21:14:37" 这样的字符串，只保留日期
