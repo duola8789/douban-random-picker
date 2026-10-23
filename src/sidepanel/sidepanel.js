@@ -35,6 +35,11 @@ const el = {
   toast: $('#toast'),
   help: $('#help'),
   helpPanel: $('#help-panel'),
+  confirmPanel: $('#confirm-panel'),
+  confirmTitle: $('#confirm-title'),
+  confirmText: $('#confirm-text'),
+  confirmOk: $('#confirm-ok'),
+  confirmCancel: $('#confirm-cancel'),
   helpClose: $('#help-close'),
 }
 
@@ -58,8 +63,6 @@ const state = {
 
 let cardRefs = null
 let cooldownTimer = null
-let skipArmed = false
-let skipTimer = null
 
 /** 侧边栏只展示最近几条，完整列表在独立页面 */
 const RECENT_IN_PANEL = 3
@@ -206,24 +209,21 @@ async function draw() {
   render()
 }
 
-async function skip() {
+function skip() {
   const pending = currentPending()
   if (!pending) return
   if (!canSkip(state.records, state.active)) return
 
-  if (!skipArmed) {
-    skipArmed = true
-    clearTimeout(skipTimer)
-    skipTimer = setTimeout(() => {
-      skipArmed = false
-      render()
-    }, 3000)
-    render()
-    return
-  }
+  openConfirm({
+    title: '不想看它？',
+    text: '今天只有这一次机会。',
+    okLabel: '不想看它',
+    onOk: () => doSkip(pending.key),
+  })
+}
 
-  skipArmed = false
-  const res = await send({ type: UI.SKIP, key: pending.key })
+async function doSkip(key) {
+  const res = await send({ type: UI.SKIP, key })
   if (res?.ok) {
     state.records = res.records ?? state.records
     state.introKey = null
@@ -412,7 +412,7 @@ function renderActions() {
     const allowed = canSkip(state.records, state.active)
     el.openDouban.disabled = false
     el.skip.disabled = !allowed
-    el.skip.textContent = allowed ? (skipArmed ? '真的不想看它吗' : '不想看它') : '明天再说'
+    el.skip.textContent = allowed ? '不想看它' : '明天再说'
     el.skip.title = allowed ? '今天还能反悔一次' : '今天已经反悔过了，明天再来'
   }
 }
@@ -846,7 +846,6 @@ for (const tab of el.tabs) {
     state.active = tab.dataset.cat
     state.blocking = null
     state.toast = null
-    skipArmed = false
     render()
     await send({ type: UI.SET_CATEGORY, category: state.active })
   })
@@ -877,23 +876,46 @@ el.resetAccount.addEventListener('click', async () => {
   render()
 })
 
-let clearArmed = false
-el.clearHistory.addEventListener('click', async () => {
-  if (!clearArmed) {
-    clearArmed = true
-    el.clearHistory.textContent = '确认清空？'
-    setTimeout(() => {
-      clearArmed = false
-      el.clearHistory.textContent = '清空'
-    }, 3000)
-    return
-  }
-  clearArmed = false
-  el.clearHistory.textContent = '清空'
-  const res = await send({ type: UI.CLEAR_HISTORY })
-  if (res?.ok) state.records = res.records ?? []
-  historySignature = null
-  render()
+el.clearHistory.addEventListener('click', () => {
+  openConfirm({
+    title: '清空记录？',
+    text: '已经处理过的记录都会消失。待看的那一部会保留——否则清空就成了重新抽的后门。',
+    okLabel: '清空',
+    onOk: async () => {
+      const res = await send({ type: UI.CLEAR_HISTORY })
+      if (res?.ok) state.records = res.records ?? []
+      historySignature = null
+      render()
+    },
+  })
+})
+
+// ---------------------------------------------------------------- 确认弹窗
+
+let confirmAction = null
+
+function openConfirm({ title, text, okLabel, onOk }) {
+  confirmAction = onOk
+  el.confirmTitle.textContent = title
+  el.confirmText.textContent = text
+  el.confirmOk.textContent = okLabel
+  el.confirmPanel.hidden = false
+  queueMicrotask(() => el.confirmCancel.focus())
+}
+
+function closeConfirm() {
+  confirmAction = null
+  el.confirmPanel.hidden = true
+}
+
+el.confirmCancel.addEventListener('click', closeConfirm)
+el.confirmPanel.addEventListener('click', (event) => {
+  if (event.target === el.confirmPanel) closeConfirm()
+})
+el.confirmOk.addEventListener('click', async () => {
+  const action = confirmAction
+  closeConfirm()
+  if (action) await action()
 })
 
 el.help.addEventListener('click', () => {
@@ -906,7 +928,9 @@ el.helpPanel.addEventListener('click', (event) => {
   if (event.target === el.helpPanel) el.helpPanel.hidden = true
 })
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') el.helpPanel.hidden = true
+  if (event.key !== 'Escape') return
+  if (!el.confirmPanel.hidden) closeConfirm()
+  else el.helpPanel.hidden = true
 })
 
 async function runNoticeAction(kind) {
