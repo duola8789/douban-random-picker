@@ -21,6 +21,12 @@ v1 已实现，等待真机验收（`openspec/changes/v1-random-picker/tasks.md`
 - 功能性的错误提示必须准确，文艺不能牺牲可读性。要在「有气质」和
   「用户看得懂」冲突时，选后者。
 
+## 提交与推送
+
+- **除非用户明确说「push」，否则不要推送。** 可以本地 commit，但不要 `git push`，
+  也不要 `git push --force`。推送会触发 CI 并可能自动发 Release，属于对外动作。
+- 提交信息按 Conventional Commits，结尾带 Co-Authored-By。
+
 ## 版本策略
 
 版本号 `x.y.z`，按语义化版本：

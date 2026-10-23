@@ -1057,6 +1057,11 @@ button:disabled:active {
   padding: 0;
 }
 
+.dev-link.dev-link-muted {
+  margin-top: 10px;
+  color: var(--ink);
+}
+
 .dev-hint {
   margin-top: 4px;
   font-size: 11px;
