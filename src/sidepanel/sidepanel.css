@@ -417,24 +417,32 @@ button:disabled:active {
 .rolling img {
   width: 64px;
   height: 64px;
-  animation: tumble 780ms cubic-bezier(0.35, 0.6, 0.35, 1) infinite;
+  /* 一次转完就停，不再循环 */
+  animation: tumble 1200ms linear forwards;
 }
 
+/*
+ * 关键帧的疏密决定转速：前段转得多、后段转得少，
+ * 看起来就是「转起来 → 慢慢停住」，而不是匀速转圈。
+ */
 @keyframes tumble {
   0% {
     transform: rotate(0deg) translateY(0) scale(1);
   }
-  25% {
-    transform: rotate(90deg) translateY(-6px) scale(1.04);
+  18% {
+    transform: rotate(320deg) translateY(-8px) scale(1.05);
   }
-  50% {
-    transform: rotate(180deg) translateY(0) scale(1);
+  42% {
+    transform: rotate(650deg) translateY(0) scale(1);
   }
-  75% {
-    transform: rotate(270deg) translateY(-3px) scale(1.02);
+  66% {
+    transform: rotate(870deg) translateY(-4px) scale(1.02);
+  }
+  86% {
+    transform: rotate(1010deg) translateY(0) scale(1);
   }
   100% {
-    transform: rotate(360deg) translateY(0) scale(1);
+    transform: rotate(1080deg) translateY(0) scale(1);
   }
 }
 
@@ -639,7 +647,8 @@ button:disabled:active {
   display: flex;
   flex-direction: column;
   gap: 9px;
-  padding: 0 14px 14px;
+  padding: 0 14px;
+  margin-bottom: 14px;
 }
 
 .card-body[hidden] {
