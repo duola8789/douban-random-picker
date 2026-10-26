@@ -12,6 +12,8 @@ export const UI = {
   GET_STATE: 'ui:getState',
   PICK: 'ui:pick',
   SKIP: 'ui:skip',
+  MARK_DONE: 'ui:markDone',
+  DELETE_RECORD: 'ui:deleteRecord',
   SYNC: 'ui:sync',
   DETAIL: 'ui:detail',
   COVER_COLOR: 'ui:coverColor',
@@ -19,6 +21,9 @@ export const UI = {
   SET_CATEGORY: 'ui:setCategory',
   SAVE_DETAIL: 'ui:saveDetail',
   CLEAR_HISTORY: 'ui:clearHistory',
+  GET_CANDIDATES: 'ui:getCandidates',
+  HIDE_CANDIDATES: 'ui:hideCandidates',
+  UNHIDE_CANDIDATES: 'ui:unhideCandidates',
   PROBE_LOGIN: 'ui:probeLogin',
 }
 
@@ -58,5 +63,9 @@ export const ERROR = {
   PENDING_EXISTS: 'PENDING_EXISTS',
   /** 今天的跳过次数已用完 */
   SKIP_LIMIT: 'SKIP_LIMIT',
+  /** 目标记录不存在 */
+  NOT_FOUND: 'NOT_FOUND',
+  /** 待看记录不能删除，必须先处理掉 */
+  PENDING_CANNOT_DELETE: 'PENDING_CANNOT_DELETE',
   SYNCING: 'SYNCING',
 }

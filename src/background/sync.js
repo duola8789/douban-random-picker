@@ -119,7 +119,7 @@ async function probeWithFallback() {
 }
 
 /** 下发一个维度的拉取任务，等待 content script 回传结果 */
-function fetchDimension(tabId, { uid, type: mediaType, dimension }) {
+function fetchDimension(tabId, { uid, type: mediaType, status, dimension }) {
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
       pending.delete(dimension)
@@ -138,7 +138,7 @@ function fetchDimension(tabId, { uid, type: mediaType, dimension }) {
         uid,
         // 注意别写成 type，会和消息类型同名互相覆盖
         mediaType,
-        status: 'mark',
+        status,
         dimension,
         // 请求参数由这里下发，content script 不自己维护一份
         config: {
@@ -281,7 +281,12 @@ async function runDimensions(targets, tabId, uid) {
       if (!dimension) continue
 
       broadcast({ type: SW_EVENT.SYNC_PROGRESS, dimension: key, fetched: 0, total: 0, started: true })
-      const result = await fetchDimension(tabId, { uid, type: dimension.type, dimension: key })
+      const result = await fetchDimension(tabId, {
+        uid,
+        type: dimension.type,
+        status: dimension.status,
+        dimension: key,
+      })
       results.push({ key, ...result })
     }
   }

@@ -27,6 +27,38 @@ body.page {
   font-size: 12px;
 }
 
+.page-tool {
+  margin-left: auto;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 0 2px 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+
+.filters .field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.filters select {
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fffdf8;
+  color: var(--ink);
+}
+
 .record-list {
   display: flex;
   flex-direction: column;
@@ -78,8 +110,42 @@ body.page {
   flex: 0 0 auto;
 }
 
+.record-list .row-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 4px;
+}
+
+.record-list .mini {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.record-list .mini:hover {
+  border-color: var(--muted);
+  color: var(--ink);
+}
+
+.record-list .mini.danger {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 40%, transparent);
+}
+
+.record-list .mini.danger:hover {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
 .empty-line {
   color: var(--muted);
   font-size: 13px;
   padding: 12px 8px;
+}
+
+/* sidepanel.css 给 .empty-line 设了 display: flex，会盖掉 [hidden]，这里收回 */
+.empty-line[hidden] {
+  display: none;
 }

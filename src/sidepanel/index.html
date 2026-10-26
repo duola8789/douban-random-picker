@@ -14,7 +14,7 @@
         <h1>豆瓣随机</h1>
         <button id="help" class="icon-btn" type="button" aria-label="这是什么">?</button>
       </div>
-      <button id="sync" class="ghost" type="button">同步</button>
+      <button id="sync" class="ghost" type="button">同步数据</button>
     </header>
 
     <nav class="tabs" role="tablist" aria-label="类别">
@@ -34,8 +34,15 @@
     <div class="actions" id="actions">
       <button id="draw" class="primary" type="button">抽一个</button>
       <div id="pending-actions" class="pending-actions" hidden>
-        <button id="open-douban" class="ghost" type="button">去豆瓣看看</button>
-        <button id="skip" class="ghost" type="button">跳过</button>
+        <button id="mark-done" class="complete" type="button">
+          <span class="wide-label">看完了</span><span class="narrow-label" aria-hidden="true">看完</span>
+        </button>
+        <button id="open-douban" class="ghost" type="button">
+          <span class="wide-label">去豆瓣</span><span class="narrow-label" aria-hidden="true">豆瓣</span>
+        </button>
+        <button id="skip" class="ghost" type="button">
+          <span class="wide-label">不想看</span><span class="narrow-label" aria-hidden="true">跳过</span>
+        </button>
       </div>
     </div>
 
@@ -48,7 +55,10 @@
         </div>
       </div>
       <ul id="history-list" class="history-list"></ul>
-      <button id="view-all" class="link see-all" type="button">查看全部记录 →</button>
+      <div class="see-all-row">
+        <button id="view-all" class="link see-all" type="button">查看全部记录 →</button>
+        <button id="view-candidates" class="link see-all" type="button">候选池 →</button>
+      </div>
     </section>
 
     <div id="toast" class="toast" hidden></div>
@@ -68,7 +78,7 @@
       <div class="help-card" role="dialog" aria-label="这是什么">
         <header class="help-head">
           <h2>这是什么</h2>
-          <button id="help-close" class="icon-btn" type="button" aria-label="关闭">×</button>
+          <button id="help-close" class="icon-btn close" type="button" aria-label="关闭"></button>
         </header>
 
         <p>
@@ -79,13 +89,22 @@
         <h3>一个类别只有一个待看</h3>
         <p>
           如果抽完还能一直重抽，等于没做决定。所以某个类别抽中之后，
-          要么去看，要么跳过，才能抽下一个。跳过每天每类只有 1 次。
+          要么去看，要么跳过，才能抽下一个。跳过每天每类只有 2 次。
+        </p>
+        <p>
+          看完之后点「看完了」。这只记在这台浏览器里，不会改变你在豆瓣上的标记。
         </p>
 
         <h3>数据哪里来</h3>
         <p>
-          来自你自己在豆瓣标记的「想看 / 想读」，用浏览器里已有的登录状态读取。
+          来自你自己在豆瓣标记的「想看 / 想读」和「看过 / 读过」，用浏览器里已有的登录状态读取。
           不碰账号密码，不保存 cookie，也不修改你在豆瓣上的任何数据。
+        </p>
+
+        <h3>候选池</h3>
+        <p>
+          抽到不想抽的，可以在「候选池」里屏蔽掉它——它不会再从池子里出来。
+          屏蔽只是在你自己的浏览器里记一笔，豆瓣上的收藏不受影响，随时可以恢复。
         </p>
 
         <h3>隐私</h3>

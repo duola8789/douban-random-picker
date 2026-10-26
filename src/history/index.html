@@ -10,11 +10,48 @@
   <body class="page">
     <header class="page-head">
       <h1>全部记录</h1>
+      <button id="help" class="icon-btn" type="button" aria-label="这个页面是什么">?</button>
       <span id="meta" class="page-hint"></span>
+      <button id="export" class="link page-tool" type="button">导出</button>
     </header>
+
+    <div class="filters">
+      <label class="field">
+        <span>类别</span>
+        <select id="filter-category">
+          <option value="">全部</option>
+          <option value="movie">电影</option>
+          <option value="tv">剧集</option>
+          <option value="book">图书</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>来源</span>
+        <select id="filter-source">
+          <option value="">全部</option>
+          <option value="mark">想看 / 想读</option>
+          <option value="done">看过 / 读过</option>
+        </select>
+      </label>
+      <button id="clear-filters" class="link" type="button" hidden>清除筛选</button>
+    </div>
 
     <main id="list" class="record-list"></main>
     <p id="empty" class="empty-line" hidden>还没开始过。</p>
+
+    <div id="help-panel" class="overlay" hidden>
+      <div class="help-card" role="dialog" aria-label="这个页面是什么">
+        <header class="help-head">
+          <h2>这个页面是什么</h2>
+          <button id="help-close" class="icon-btn close" type="button" aria-label="关闭"></button>
+        </header>
+
+        <p>这里记录你抽到过什么，以及后来怎么处理的。</p>
+        <p>待看：抽中了，还没决定。跳过：当时换了一个。看过：看完了。</p>
+        <p>已经处理过的记录可以删掉。删掉一条「看过」，对应的条目会重新回到候选池。</p>
+        <p>记录只存在这台电脑里。</p>
+      </div>
+    </div>
 
     <script type="module" src="./history.js"></script>
   </body>

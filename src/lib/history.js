@@ -80,6 +80,21 @@ export function resolveRecord(records, key, state, now = Date.now()) {
   )
 }
 
+/**
+ * 删除一条记录。
+ *
+ * 待看不能删：删了它，抽取限制就出现了后门——「删掉再抽」等于无限重抽。
+ * 删除「看过」的记录则是合法的撤销，该条目会重新回到候选池。
+ *
+ * @returns {object[]} 不可删时返回原数组；否则返回删掉该条后的新数组
+ */
+export function deleteRecord(records, key) {
+  const list = records ?? []
+  const target = list.find((r) => r.key === key)
+  if (!target || target.state === 'pending') return list
+  return list.filter((r) => r.key !== key)
+}
+
 /** 同一天（本地时区） */
 export function sameLocalDay(a, b) {
   const da = new Date(a)

@@ -117,6 +117,76 @@ test('连续抽取在窗口内不重复', () => {
   assert.equal(new Set(recent).size, recent.length, '最近 20 条不应重复')
 })
 
+test('本地标记完成的条目永久排除，滑出窗口也不回来', () => {
+  const items = makeItems('movie', 100)
+  const history = [
+    { key: 'movie:0', category: 'movie', state: 'done', drawnAt: 0 },
+    ...items
+      .slice(1, 26)
+      .map((it, i) => ({ key: it.key, category: 'movie', state: 'skipped', drawnAt: i + 1 })),
+  ]
+  const random = lcg(5)
+
+  for (let i = 0; i < 500; i += 1) {
+    const { item } = pick({ pools: { movie: items }, enabled: ['movie'], history, windowSize: 20, random })
+    assert.notEqual(item.key, 'movie:0', '已标记完成的条目不应再被抽中')
+  }
+})
+
+test('全部候选都已标记完成时返回 POOL_EXHAUSTED', () => {
+  const items = makeItems('movie', 3)
+  const history = items.map((it) => ({ key: it.key, category: 'movie', state: 'done' }))
+  const result = pick({ pools: { movie: items }, enabled: ['movie'], history })
+  assert.equal(result.error, PICK_ERROR.POOL_EXHAUSTED)
+})
+
+test('删除记录后条目回到候选池', () => {
+  const items = makeItems('movie', 10)
+  const done = { key: 'movie:0', category: 'movie', state: 'done' }
+  const random = lcg(11)
+
+  const blocked = pick({ pools: { movie: [items[0]] }, enabled: ['movie'], history: [done], random })
+  assert.equal(blocked.error, PICK_ERROR.POOL_EXHAUSTED)
+
+  // 删除该记录，等价于把它从 history 里移除
+  const { item } = pick({ pools: { movie: [items[0]] }, enabled: ['movie'], history: [], random })
+  assert.equal(item.key, 'movie:0')
+})
+
+test('本地隐藏的条目不被抽中', () => {
+  const items = makeItems('movie', 5)
+  const hidden = { 'movie:0': Date.now() }
+  const random = lcg(13)
+
+  for (let i = 0; i < 200; i += 1) {
+    const { item } = pick({ pools: { movie: items }, enabled: ['movie'], history: [], hidden, random })
+    assert.notEqual(item.key, 'movie:0')
+  }
+})
+
+test('隐藏与去重窗口同时生效', () => {
+  const items = makeItems('movie', 5)
+  const hidden = { 'movie:1': Date.now(), 'movie:2': Date.now() }
+  const history = [{ key: 'movie:3', category: 'movie', state: 'skipped' }]
+  const random = lcg(17)
+  const seen = new Set()
+
+  for (let i = 0; i < 200; i += 1) {
+    const { item } = pick({
+      pools: { movie: items },
+      enabled: ['movie'],
+      history,
+      hidden,
+      windowSize: 20,
+      random,
+    })
+    seen.add(item.key)
+  }
+
+  // 1、2 被隐藏，3 在去重窗口内，只剩 0 和 4
+  assert.deepEqual([...seen].sort(), ['movie:0', 'movie:4'])
+})
+
 test('buildPools 按类别分桶', () => {
   const pools = buildPools({
     'movie:mark': { items: [...makeItems('movie', 2), ...makeItems('tv', 3)] },

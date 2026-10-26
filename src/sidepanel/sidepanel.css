@@ -152,6 +152,34 @@ button:disabled:active {
   color: var(--accent);
 }
 
+/*
+ * × 用两条线画，不用字符。
+ * × 的字形视觉中心和 em 盒中心对不上，在圆形按钮里会偏上。
+ */
+.icon-btn.close {
+  position: relative;
+}
+
+.icon-btn.close::before,
+.icon-btn.close::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 7px;
+  height: 1.3px;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.icon-btn.close::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.icon-btn.close::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
 .ghost {
   background: transparent;
   border-color: var(--line);
@@ -258,30 +286,59 @@ button:disabled:active {
 
 .pending-actions button {
   flex: 1;
+  min-width: 0;
   font-size: 14px;
+  padding-inline: 10px;
+  white-space: nowrap;
 }
 
-/* 主行动：去豆瓣（绿色实心，和「抽一个」同一语义） */
-.pending-actions #open-douban {
+/* 主行动：看完了（正向出口，绿色实心，和「抽一个」同一语义） */
+.pending-actions #mark-done {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
 }
 
-.pending-actions #open-douban:hover:not(:disabled) {
+.pending-actions #mark-done:hover:not(:disabled) {
   background: var(--accent-dark);
 }
 
-/* 次要行动：跳过（中性灰，视觉上弱于主行动） */
+/* 次要行动：去豆瓣、跳过（中性灰，视觉上弱于主行动） */
+.pending-actions #open-douban,
 .pending-actions #skip {
   background: #fffdf8;
   border-color: var(--line);
   color: var(--muted);
 }
 
+.pending-actions #open-douban:hover:not(:disabled),
 .pending-actions #skip:hover:not(:disabled) {
   border-color: var(--muted);
   color: var(--ink);
+}
+
+/* 两套文案：宽屏显示完整版，窄屏换成两字版 */
+.narrow-label {
+  display: none;
+}
+
+/*
+ * 三个动作并排时，360px 以下是极限：
+ * 两字文案 + 收紧内边距才站得住，剩余次数改用不占内容宽的角标。
+ */
+@media (max-width: 359px) {
+  .pending-actions button {
+    font-size: 12px;
+    padding-inline: 8px;
+  }
+
+  .wide-label {
+    display: none;
+  }
+
+  .narrow-label {
+    display: inline;
+  }
 }
 
 /* ---------------------------------------------------------------- 标签 */
@@ -369,6 +426,17 @@ button:disabled:active {
   display: flex;
   gap: 8px;
   margin-top: 4px;
+}
+
+/* 标记完成后的一次性提示：建议去豆瓣标记，不是待办，所以很轻 */
+.hint-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 12px;
 }
 
 .counts {
@@ -613,6 +681,8 @@ button:disabled:active {
   .card-cover {
     width: 132px;
     height: 198px;
+    /* 竖排之后靠左会在右侧空出一块，居中更稳 */
+    align-self: center;
   }
 
   /*
@@ -637,6 +707,14 @@ button:disabled:active {
 
   .info-rows {
     font-size: 11.5px;
+  }
+}
+
+/* 再窄一档：封面继续缩，避免卡片被海报撑满 */
+@media (max-width: 300px) {
+  .card-cover {
+    width: 108px;
+    height: 162px;
   }
 }
 
@@ -802,6 +880,12 @@ button:disabled:active {
   padding: 2px 6px;
   color: var(--accent);
   font-size: 12px;
+}
+
+.see-all-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
 .see-all[hidden] {
