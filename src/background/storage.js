@@ -3,8 +3,9 @@
  *
  * 存储结构：
  *   settings { uid, category }        category = 上次停留的类别页签
- *   caches   { "movie:mark": { items, total, syncedAt, partial }, "book:mark": ... }
+ *   caches   { "movie:mark": { items, total, syncedAt, partial }, "movie:done": ... }
  *   records  [ { key, category, title, ..., status, drawnAt, resolvedAt? } ]  由旧到新
+ *   hidden   { [key]: removedAt }      候选池页的「删除」= 本地屏蔽，不写豆瓣
  */
 
 import { emptyCache } from '../lib/cache.js'
@@ -14,9 +15,9 @@ export const DEFAULT_SETTINGS = {
   category: 'movie',
 }
 
-const KEYS = ['settings', 'caches', 'records', 'history']
+const KEYS = ['settings', 'caches', 'records', 'history', 'hidden']
 
-/** @returns {Promise<{settings: any, caches: any, records: any[]}>} */
+/** @returns {Promise<{settings: any, caches: any, records: any[], hidden: Record<string, number>}>} */
 export async function readAll() {
   const raw = await chrome.storage.local.get(KEYS)
 
@@ -24,7 +25,12 @@ export async function readAll() {
   delete settings.scopes // v0.2 之前的类别开关，已废弃
   const caches = { ...emptyCache(), ...(raw.caches ?? {}) }
 
-  return { settings, caches, records: migrateRecords(raw) }
+  return {
+    settings,
+    caches,
+    records: migrateRecords(raw),
+    hidden: raw.hidden ?? {},
+  }
 }
 
 /**
@@ -68,4 +74,9 @@ export async function writeCache(dimension, entry) {
 export async function writeRecords(records) {
   await chrome.storage.local.set({ records })
   return records
+}
+
+export async function writeHidden(hidden) {
+  await chrome.storage.local.set({ hidden })
+  return hidden
 }

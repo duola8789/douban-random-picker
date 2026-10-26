@@ -7,7 +7,7 @@
 
 import { UI, SW_EVENT } from '../lib/messages.js'
 import { allDimensionKeys, isFresh } from '../lib/cache.js'
-import { pendingFor, canSkip, skipsLeft } from '../lib/history.js'
+import { pendingFor, canSkip } from '../lib/history.js'
 import { CATEGORY_LABEL, CATEGORY_UNIT, sourceTag, stateTag, renderTag } from '../lib/labels.js'
 
 /** 抽取按钮：统一叫「开始吧」，正好接住 slogan 的后半句 */
@@ -24,6 +24,7 @@ const el = {
   draw: $('#draw'),
   actions: $('#actions'),
   pendingActions: $('#pending-actions'),
+  markDone: $('#mark-done'),
   openDouban: $('#open-douban'),
   skip: $('#skip'),
   sync: $('#sync'),
@@ -33,6 +34,7 @@ const el = {
   backdrop: $('#backdrop'),
   clearHistory: $('#clear-history'),
   viewAll: $('#view-all'),
+  viewCandidates: $('#view-candidates'),
   resetAccount: $('#reset-account'),
   toast: $('#toast'),
   help: $('#help'),
@@ -58,6 +60,8 @@ const state = {
   needsSetup: false,
   probeReason: null,
   toast: null,
+  /** 标记完成后的一次性提示：{ text, url } */
+  hint: null,
   blocking: null,
   progress: null,
   cooldownUntil: 0,
@@ -194,6 +198,7 @@ async function draw() {
   state.drawing = true
   state.blocking = null
   state.toast = null
+  state.hint = null
   render()
 
   const startedAt = Date.now()
@@ -273,6 +278,39 @@ async function doSkip(key) {
   // 跳过的目的就是再挑一部。额度已经用完一次，这里直接续抽；
   // 若这一类的候选也空了，draw() 会给出对应的提示。
   await draw()
+}
+
+/**
+ * 标记完成。
+ *
+ * 和跳过不同：不自动续抽。跳过是「现在就要换」，看完了是「这段时间结束了」，
+ * 下一次抽取本来就是一个新的开始。
+ */
+async function markDone() {
+  const pending = currentPending()
+  if (!pending) return
+
+  const res = await send({ type: UI.MARK_DONE, key: pending.key })
+  if (!res?.ok) {
+    if (res?.error) applyError(res.error, '标记')
+    render()
+    return
+  }
+
+  state.records = res.records ?? state.records
+  state.detailKey = null
+  state.intro = ''
+
+  // 只对「看新」的条目提示去豆瓣标记；重温条目本来就是看过的
+  state.hint =
+    pending.markStatus === 'done' || !pending.url
+      ? null
+      : {
+          text: state.active === 'book' ? '去豆瓣上标记已读过' : '去豆瓣上标记已看过',
+          url: pending.url,
+        }
+
+  render()
 }
 
 /**
@@ -487,16 +525,24 @@ function renderActions() {
     state.syncing || state.drawing || state.needsSetup || Boolean(state.blocking)
   el.draw.textContent = DRAW_LABEL
 
-  if (pending) {
-    const allowed = canSkip(state.records, state.active)
-    el.openDouban.disabled = false
-    // 用 aria-disabled 而不是 disabled：原生禁用态下浏览器会接管光标，样式管不住
-    el.skip.classList.toggle('is-disabled', !allowed)
-    el.skip.setAttribute('aria-disabled', String(!allowed))
-    el.pendingActions.classList.toggle('is-locked', !allowed)
-    const left = skipsLeft(state.records, state.active)
-    el.skip.textContent = allowed ? `不想看它（还剩 ${left} 次）` : '今天就它了'
-  }
+  if (!pending) return
+
+  const book = state.active === 'book'
+  const allowed = canSkip(state.records, state.active)
+
+  el.markDone.disabled = false
+  el.markDone.querySelector('.wide-label').textContent = book ? '读完了' : '看完了'
+  el.markDone.querySelector('.narrow-label').textContent = book ? '读完' : '看完'
+
+  el.openDouban.disabled = false
+
+  // 用 aria-disabled 而不是 disabled：原生禁用态下浏览器会接管光标，样式管不住
+  el.skip.classList.toggle('is-disabled', !allowed)
+  el.skip.setAttribute('aria-disabled', String(!allowed))
+  el.pendingActions.classList.toggle('is-locked', !allowed)
+  // 不在按钮上写剩余次数：「· 2」这种表达没人看得懂，额度用尽时按钮自己会变成「今天就它了」
+  el.skip.querySelector('.wide-label').textContent = allowed ? '不想看' : '今天就它了'
+  el.skip.querySelector('.narrow-label').textContent = allowed ? '跳过' : '就它了'
 }
 
 function renderToast() {
@@ -705,7 +751,7 @@ function placeholderView() {
       : '正在读取你在豆瓣的标记…'
   } else if (countByCategory()[state.active] === 0) {
     title.textContent = '这一类还空着'
-    hint.textContent = `点右上角同步拉一次，或者先去豆瓣添几${COUNT_UNIT[state.active]}。`
+    hint.textContent = `点右上角的「同步数据」拉一次，或者先去豆瓣添几${COUNT_UNIT[state.active]}。`
   } else {
     const n = countByCategory()[state.active]
     title.textContent = '少一点选择，多一点开始'
@@ -713,7 +759,23 @@ function placeholderView() {
   }
 
   wrap.append(title, hint)
+  if (state.hint) wrap.append(hintNote())
   return wrap
+}
+
+/** 标记完成后的轻提示：整行就是入口，点一下去条目页，不弹窗、不自动打开 */
+function hintNote() {
+  const note = document.createElement('div')
+  note.className = 'hint-note'
+
+  const link = document.createElement('button')
+  link.type = 'button'
+  link.className = 'link'
+  link.textContent = `${state.hint.text} →`
+  link.addEventListener('click', () => chrome.tabs.create({ url: state.hint.url }))
+
+  note.append(link)
+  return note
 }
 
 function countByCategory() {
@@ -782,10 +844,10 @@ function cardView(record) {
 
     const eyebrow = document.createElement('div')
     eyebrow.className = 'my-mark-eyebrow'
-    // 来源和标记时间都是「我」和这部片子的关系，放在一起
-    eyebrow.textContent = ['我的标记', `来自「${sourceTag(record).label}」`, record.markedOn]
-      .filter(Boolean)
-      .join(' · ')
+    // 来源和标记时间都是「我」和这部片子的关系，放在一起。
+    // 看过的条目在卡片上叫「重温」——记录页那边仍然说「来自看过」。
+    const origin = record.markStatus === 'done' ? '重温' : `来自「${sourceTag(record).label}」`
+    eyebrow.textContent = ['我的标记', origin, record.markedOn].filter(Boolean).join(' · ')
     mine.append(eyebrow)
 
     if (typeof record.myRating === 'number') {
@@ -1002,6 +1064,7 @@ for (const tab of el.tabs) {
     state.active = tab.dataset.cat
     state.blocking = null
     state.toast = null
+    state.hint = null
     render()
     await send({ type: UI.SET_CATEGORY, category: state.active })
   })
@@ -1010,6 +1073,7 @@ for (const tab of el.tabs) {
 el.draw.addEventListener('click', draw)
 el.sync.addEventListener('click', () => runSync({ force: true }))
 el.skip.addEventListener('click', skip)
+el.markDone.addEventListener('click', markDone)
 
 el.openDouban.addEventListener('click', () => {
   const pending = currentPending()
@@ -1018,6 +1082,12 @@ el.openDouban.addEventListener('click', () => {
 
 el.viewAll.addEventListener('click', () => {
   chrome.tabs.create({ url: chrome.runtime.getURL('src/history/index.html') })
+})
+
+el.viewCandidates.addEventListener('click', () => {
+  chrome.tabs.create({
+    url: chrome.runtime.getURL(`src/candidates/index.html?cat=${state.active}`),
+  })
 })
 
 el.resetAccount.addEventListener('click', async () => {

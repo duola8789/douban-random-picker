@@ -49,30 +49,54 @@ export function remainingFor(items, categoryHistory, windowSize = DEFAULT_WINDOW
 /**
  * 抽取一条。
  *
+ * 三层排除：
+ *   1. 去重窗口（最近抽过）
+ *   2. 本地已标记完成的条目（看过，不再抽）
+ *   3. 本地屏蔽的条目（候选池页里剔除的）
+ *
  * @param {object} params
  * @param {Record<Category, any[]>} params.pools        按类别分好的候选条目
  * @param {Category[]} params.enabled                   被勾选的类别
  * @param {object[]} params.history                     全部历史（由旧到新）
+ * @param {Record<string, number>} [params.hidden]      屏蔽集合
  * @param {number} [params.windowSize]
  * @param {() => number} [params.random]                便于测试注入
  * @returns {{item: any} | {error: string}}
  */
-export function pick({ pools, enabled, history, windowSize = DEFAULT_WINDOW, random = Math.random }) {
+export function pick({
+  pools,
+  enabled,
+  history,
+  hidden,
+  windowSize = DEFAULT_WINDOW,
+  random = Math.random,
+}) {
   const scoped = enabled.filter((c) => (pools?.[c]?.length ?? 0) > 0)
   if (scoped.length === 0) {
     return { error: enabled.length === 0 ? PICK_ERROR.NO_SCOPE : PICK_ERROR.NO_CANDIDATES }
   }
 
   const historyByCategory = groupHistoryByCategory(history ?? [])
+  // 本地标记完成的条目永久退出候选，不受去重窗口限制。
+  // 删除对应记录即撤销排除——见 specs/draw-history 的「删除单条记录」。
+  const doneKeys = new Set(
+    (history ?? []).filter((h) => h.state === 'done').map((h) => h.key),
+  )
+  // 屏蔽只表达「不想抽」，与记录互不替代
+  const hiddenKeys = new Set(Object.keys(hidden ?? {}))
 
   /** @type {Record<string, any[]>} */
   const eligible = {}
   for (const category of scoped) {
-    const remaining = remainingFor(pools[category], historyByCategory[category] ?? [], windowSize)
+    const remaining = remainingFor(pools[category], historyByCategory[category] ?? [], windowSize).filter(
+      (it) => !doneKeys.has(it.key) && !hiddenKeys.has(it.key),
+    )
     if (remaining.length > 0) eligible[category] = remaining
   }
 
   const categories = Object.keys(eligible)
+  // 全部条目要么在去重窗口里、要么已标记完成时，统一返回 POOL_EXHAUSTED。
+  // 界面不需要区分这两种情况：处理方式都是清空记录。
   if (categories.length === 0) return { error: PICK_ERROR.POOL_EXHAUSTED }
 
   // 第一层：类别等权

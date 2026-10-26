@@ -6,6 +6,7 @@ import {
   makeRecord,
   pendingFor,
   resolveRecord,
+  deleteRecord,
   clearResolved,
   recentFirst,
   canSkip,
@@ -28,6 +29,26 @@ function item(overrides = {}) {
     ...overrides,
   }
 }
+
+test('待看记录不能删除', () => {
+  const records = [makeRecord(item())]
+  assert.equal(deleteRecord(records, 'movie:1'), records, '待看应原样返回')
+})
+
+test('删除已处理记录', () => {
+  const records = [
+    { ...makeRecord(item()), state: 'skipped', resolvedAt: 1 },
+    makeRecord(item({ key: 'movie:2', subjectId: '2' })),
+  ]
+  const next = deleteRecord(records, 'movie:1')
+  assert.equal(next.length, 1)
+  assert.equal(next[0].key, 'movie:2')
+})
+
+test('删除不存在的记录不改动', () => {
+  const records = [makeRecord(item())]
+  assert.equal(deleteRecord(records, 'movie:999'), records)
+})
 
 test('记录同时保存决定状态与豆瓣标记状态', () => {
   const record = makeRecord(item())
@@ -131,7 +152,12 @@ test('缓存新鲜度按 24h 判定', () => {
   assert.equal(isFresh(undefined, now), false)
 })
 
-test('同步维度始终是两个', () => {
-  assert.deepEqual(allDimensionKeys(), ['movie:mark', 'book:mark'])
-  assert.deepEqual(Object.keys(emptyCache()).sort(), ['book:mark', 'movie:mark'])
+test('同步维度始终是四个', () => {
+  assert.deepEqual(allDimensionKeys(), ['movie:mark', 'book:mark', 'movie:done', 'book:done'])
+  assert.deepEqual(Object.keys(emptyCache()).sort(), [
+    'book:done',
+    'book:mark',
+    'movie:done',
+    'movie:mark',
+  ])
 })

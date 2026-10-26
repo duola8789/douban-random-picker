@@ -41,10 +41,11 @@ test('同步后缓存里有电影、剧集、图书三类', async () => {
 })
 
 test('不同维度并行，同一维度内部串行', () => {
-  // 两个维度各 3 页左右，同时起跑
+  // 四个维度，同时最多跑两条流
   assert.ok(env.stats.maxInflight >= 2, `最大并发应为 2，实际 ${env.stats.maxInflight}`)
-  assert.equal(env.stats.byType.movie.maxConcurrent, 1, '电影维度内必须串行')
-  assert.equal(env.stats.byType.book.maxConcurrent, 1, '图书维度内必须串行')
+  for (const key of ['movie:mark', 'book:mark', 'movie:done', 'book:done']) {
+    assert.equal(env.stats.byDimension[key].maxConcurrent, 1, `${key} 维度内必须串行`)
+  }
 })
 
 test('抽取只从指定类别里取，并记为待看', async () => {

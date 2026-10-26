@@ -15,9 +15,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url))
 const CONTENT_SRC = fs.readFileSync(path.join(HERE, '../../src/content/content.js'), 'utf8')
 
 /** 生成符合豆瓣接口形状的原始条目 */
-function rawItem(id, type, title) {
+function rawItem(id, type, title, status = 'mark') {
   return {
-    status: 'mark',
+    status,
     comment: `短评 ${id}`,
     rating: { value: (id % 5) + 1 },
     create_time: 1_700_000_000 + id,
@@ -41,7 +41,14 @@ function buildDataset() {
   for (let i = 1; i <= 30; i += 1) movie.push(rawItem(1000 + i, 'tv', `剧集 ${i}`))
   const book = []
   for (let i = 1; i <= 80; i += 1) book.push(rawItem(2000 + i, 'book', `图书 ${i}`))
-  return { movie, book }
+
+  // 看过的条目单独一组，数量少，不影响「想看」维度的既有断言
+  const doneMovie = []
+  for (let i = 1; i <= 5; i += 1) doneMovie.push(rawItem(3000 + i, 'movie', `看过的电影 ${i}`, 'done'))
+  const doneBook = []
+  for (let i = 1; i <= 3; i += 1) doneBook.push(rawItem(4000 + i, 'book', `看过的图书 ${i}`, 'done'))
+
+  return { movie, book, doneMovie, doneBook }
 }
 
 function fakeResponse(status, url, body) {
@@ -150,11 +157,11 @@ export function createEnv({ uid = '20250101', loggedIn = true, mineRedirect = tr
   const stats = {
     inflight: 0,
     maxInflight: 0,
-    byType: {},
+    byDimension: {},
     reset() {
       stats.inflight = 0
       stats.maxInflight = 0
-      stats.byType = {}
+      stats.byDimension = {}
     },
   }
 
@@ -183,19 +190,28 @@ export function createEnv({ uid = '20250101', loggedIn = true, mineRedirect = tr
 
     const u = new URL(href)
     const type = u.searchParams.get('type')
+    const status = u.searchParams.get('status') ?? 'mark'
     const start = Number(u.searchParams.get('start') ?? 0)
     const count = Number(u.searchParams.get('count') ?? 50)
 
     stats.inflight += 1
     stats.maxInflight = Math.max(stats.maxInflight, stats.inflight)
-    const slot = (stats.byType[type] ??= { concurrent: 0, maxConcurrent: 0 })
+    const slotKey = `${type}:${status}`
+    const slot = (stats.byDimension[slotKey] ??= { concurrent: 0, maxConcurrent: 0 })
     slot.concurrent += 1
     slot.maxConcurrent = Math.max(slot.maxConcurrent, slot.concurrent)
 
     try {
       // 模拟网络往返，让并发/串行可观测
       await new Promise((r) => setTimeout(r, 10))
-      const all = type === 'movie' ? dataset.movie : dataset.book
+      const all =
+        status === 'done'
+          ? type === 'movie'
+            ? dataset.doneMovie
+            : dataset.doneBook
+          : type === 'movie'
+            ? dataset.movie
+            : dataset.book
       const page = all.slice(start, start + count)
       return fakeResponse(200, href, { start, count, total: all.length, interests: page })
     } finally {

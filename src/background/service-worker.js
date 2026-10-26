@@ -10,10 +10,12 @@ import {
   makeRecord,
   pendingFor,
   resolveRecord,
+  deleteRecord,
   clearResolved,
   canSkip,
 } from '../lib/history.js'
-import { readAll, writeSettings, writeRecords } from './storage.js'
+import { pruneHidden } from '../lib/hidden.js'
+import { readAll, writeSettings, writeRecords, writeHidden } from './storage.js'
 import {
   runSync,
   handleSyncResult,
@@ -118,8 +120,26 @@ function summarizeCaches(caches) {
 /** 跑一次同步并广播结束事件，UI 靠它刷新 */
 async function startSync({ force = false } = {}) {
   const result = await runSync({ force })
+  if (result?.ok) {
+    // 同步完成后才判断得了「条目是否还在豆瓣收藏里」，清理放在这里
+    await cleanHidden().catch(() => {})
+  }
   chrome.runtime.sendMessage({ type: SW_EVENT.SYNC_FINISHED, result }).catch(() => {})
   return result
+}
+
+/** 清理失效的屏蔽记录：屏蔽超过 90 天，且条目已不在同步结果里 */
+async function cleanHidden() {
+  const { caches, hidden } = await readAll()
+
+  const existing = new Set()
+  for (const entry of Object.values(caches ?? {})) {
+    for (const item of entry?.items ?? []) existing.add(item.key)
+  }
+
+  const { next, removed } = pruneHidden(hidden, existing)
+  if (removed.length) await writeHidden(next)
+  return removed
 }
 
 /**
@@ -133,7 +153,7 @@ async function handlePick(category) {
     return { ok: false, error: { code: ERROR.NO_SCOPE } }
   }
 
-  const { caches, records } = await readAll()
+  const { caches, records, hidden } = await readAll()
 
   const pending = pendingFor(records, category)
   if (pending) {
@@ -145,6 +165,7 @@ async function handlePick(category) {
     pools,
     enabled: [category],
     history: records,
+    hidden,
     windowSize: CONFIG.dedupeWindow,
   })
   if (result.error) return { ok: false, error: { code: result.error } }
@@ -172,8 +193,111 @@ async function handleSkip(key) {
   return { ok: true, records: next.slice(-RECENT_RECORDS) }
 }
 
-/** 清空历史，但保留仍在待看的记录——否则清空就成了重新抽的后门 */
-async function handleClearHistory() {
+/**
+ * 标记完成：把待看改判为「看过」。
+ *
+ * 不检查跳过额度——看完一部片子是正常流程，不该为「想抽下一部」付费。
+ * 也不自动续抽：跳过是「现在就要换」，看完了是「这段时间结束了」。
+ */
+async function handleMarkDone(key) {
+  const { records } = await readAll()
+
+  const target = records.find((r) => r.key === key && r.state === 'pending')
+  if (!target) return { ok: false, error: { code: ERROR.PENDING_EXISTS } }
+
+  const next = resolveRecord(records, key, 'done')
+  await writeRecords(next)
+  return { ok: true, records: next.slice(-RECENT_RECORDS) }
+}
+
+/** 删除单条记录。待看不可删，否则删除就成了重新抽取的后门。 */
+async function handleDeleteRecord(key) {
+  const { records } = await readAll()
+
+  const target = records.find((r) => r.key === key)
+  if (!target) return { ok: false, error: { code: ERROR.NOT_FOUND } }
+  if (target.state === 'pending') {
+    return { ok: false, error: { code: ERROR.PENDING_CANNOT_DELETE } }
+  }
+
+  const next = deleteRecord(records, key)
+  await writeRecords(next)
+  return { ok: true, records: next }
+}
+
+/**
+ * 候选池页的数据。
+ *
+ * 和 GET_STATE 分开：这个要一次传几百条完整条目，而 GET_STATE 每次打开
+ * 侧边栏都会调，不该背这个量。
+ */
+async function handleGetCandidates() {
+  const { caches, hidden, records } = await readAll()
+
+  // 同一条目可能暂时同时留在旧的 mark 与新的 done 缓存里，按 done 优先合并
+  const byKey = new Map()
+  for (const entry of Object.values(caches ?? {})) {
+    for (const item of entry?.items ?? []) {
+      const prev = byKey.get(item.key)
+      if (!prev || (prev.status !== 'done' && item.status === 'done')) byKey.set(item.key, item)
+    }
+  }
+
+  const items = { movie: [], tv: [], book: [] }
+  for (const item of byKey.values()) {
+    if (items[item.category]) items[item.category].push(item)
+  }
+
+  const pendingKeys = records.filter((r) => r.state === 'pending').map((r) => r.key)
+  return { ok: true, items, hidden, pendingKeys }
+}
+
+/**
+ * 批量屏蔽。
+ *
+ * 待看的那条不能屏蔽——否则它就成了重新抽取的后门。
+ * 这条裁决放在写存储这一侧，界面禁用只是第二道。
+ */
+async function handleHideCandidates(keys) {
+  const { records, hidden } = await readAll()
+
+  const pending = new Set(records.filter((r) => r.state === 'pending').map((r) => r.key))
+  const now = Date.now()
+  const next = { ...hidden }
+  const applied = []
+  const skipped = []
+
+  for (const key of Array.isArray(keys) ? keys : []) {
+    if (typeof key !== 'string' || !key) continue
+    if (pending.has(key)) {
+      skipped.push(key)
+      continue
+    }
+    if (!(key in next)) next[key] = now
+    applied.push(key)
+  }
+
+  if (applied.length) await writeHidden(next)
+  return { ok: true, hidden: next, applied, skipped }
+}
+
+async function handleUnhideCandidates(keys) {
+  const { hidden } = await readAll()
+  const next = { ...hidden }
+  const applied = []
+
+  for (const key of Array.isArray(keys) ? keys : []) {
+    if (typeof key === 'string' && key in next) {
+      delete next[key]
+      applied.push(key)
+    }
+  }
+
+  if (applied.length) await writeHidden(next)
+  return { ok: true, hidden: next, applied }
+}
+
+/** 清空历史，但保留仍在待看的记录——否则清空就成了重新抽的后门 */async function handleClearHistory() {
   const { records } = await readAll()
   const next = clearResolved(records)
   await writeRecords(next)
@@ -298,6 +422,26 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     case UI.SKIP:
       handleSkip(message.key).then(sendResponse)
+      return true
+
+    case UI.MARK_DONE:
+      handleMarkDone(message.key).then(sendResponse)
+      return true
+
+    case UI.DELETE_RECORD:
+      handleDeleteRecord(message.key).then(sendResponse)
+      return true
+
+    case UI.GET_CANDIDATES:
+      handleGetCandidates().then(sendResponse)
+      return true
+
+    case UI.HIDE_CANDIDATES:
+      handleHideCandidates(message.keys).then(sendResponse)
+      return true
+
+    case UI.UNHIDE_CANDIDATES:
+      handleUnhideCandidates(message.keys).then(sendResponse)
       return true
 
     case UI.SYNC:
