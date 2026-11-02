@@ -54,6 +54,16 @@ Chrome MV3 扩展：从个人豆瓣收藏（电影 / 剧集 / 图书）中随机
 - **0.x 期间从简**：按上表执行，不追究兼容性。
 - **1.0.0 作为首次正式发布**；此后严格守 semver。
 
+## 发布与 Release
+
+Release 由 `.github/workflows/release.yml` 在 main push 时自动创建，说明取「上一个 tag 到 HEAD」的 commit 标题。
+
+- checkout 必须带 `fetch-tags: true`。否则 `git describe` 拿不到 tag，会退到根 commit，
+  把整段历史写进 Release 说明（v1.1.0 就踩过）。
+- tag 必须打在 main 的历史上。不要留下历史重写前的孤立 tag：它会让 `git describe`
+  找错上一个版本，也会让旧历史继续可达。
+- 重要版本手写 3–5 条摘要（功能 / 同步 / 修复），不要把全部 commit 标题直接堆上去。
+
 ## 已实测的事实（2026-10-23）
 
 - 数据源：移动端收藏接口
