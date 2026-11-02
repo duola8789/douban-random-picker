@@ -3,6 +3,7 @@
 body.page {
   display: block;
   max-width: 760px;
+  min-width: 480px;
   margin: 0 auto;
   padding: 26px 26px 48px;
   height: auto;
@@ -35,7 +36,7 @@ body.page {
   margin-bottom: 0;
 }
 
-.filters {
+.scope-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -44,7 +45,39 @@ body.page {
   border-bottom: 1px solid var(--line);
 }
 
+.scope-title {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.scope-row .check {
+  color: var(--ink);
+}
+
+.sync-status {
+  padding: 8px 2px 0;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 2px;
+}
+
+.scope-hint {
+  margin: 0 0 8px;
+  color: var(--warn);
+}
+
+.filters .field[hidden] {
+  display: none;
+}
+
 .filters .field {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -52,14 +85,46 @@ body.page {
   font-size: 12px;
 }
 
+/* 标签和下拉都给固定宽度，四个筛选才会排成整齐的列 */
+.filters .field > span {
+  white-space: nowrap;
+}
+
+/* 四个筛选统一用同一种下拉；隐藏原生箭头，自己画一个，右侧留出余量 */
 .filters select {
   font: inherit;
   font-size: 12px;
-  padding: 2px 6px;
+  width: 9em;
+  height: 26px;
+  padding: 0 26px 0 9px;
+  line-height: 24px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #fffdf8;
   color: var(--ink);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.filters select:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.filters .field::after {
+  content: "";
+  position: absolute;
+  right: 11px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin-top: -5px;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+  transform: rotate(45deg);
+  pointer-events: none;
 }
 
 .check {
@@ -74,8 +139,9 @@ body.page {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 2px;
-  border-bottom: 1px solid var(--line);
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #f6f1e6;
 }
 
 .bulk-spacer {
@@ -157,6 +223,29 @@ a.cand-title:hover {
 
 .mini:disabled {
   opacity: 0.4;
+}
+
+/* 保存候选集改动：平时灰掉，有改动才亮 */
+.save-pool {
+  padding: 4px 14px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+}
+
+.save-pool:hover:not(:disabled) {
+  background: var(--accent-dark);
+}
+
+.save-pool:disabled {
+  opacity: 0.35;
+}
+
+/* 不在池里的条目留在列表里，但退到背景 */
+.cand.is-out .cand-title,
+.cand.is-out .cand-sub {
+  opacity: 0.45;
 }
 
 .empty-line {

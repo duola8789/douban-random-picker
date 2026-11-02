@@ -18,11 +18,14 @@ export const UI = {
   DETAIL: 'ui:detail',
   COVER_COLOR: 'ui:coverColor',
   SET_UID: 'ui:setUid',
+  RESET_ACCOUNT: 'ui:resetAccount',
   SET_CATEGORY: 'ui:setCategory',
+  LOAD_SOURCES: 'ui:loadSources',
   SAVE_DETAIL: 'ui:saveDetail',
   CLEAR_HISTORY: 'ui:clearHistory',
   GET_CANDIDATES: 'ui:getCandidates',
   HIDE_CANDIDATES: 'ui:hideCandidates',
+  SAVE_POOL: 'ui:savePool',
   UNHIDE_CANDIDATES: 'ui:unhideCandidates',
   PROBE_LOGIN: 'ui:probeLogin',
 }
@@ -30,6 +33,7 @@ export const UI = {
 /** service worker -> 侧边栏（广播） */
 export const SW_EVENT = {
   STATE_CHANGED: 'sw:stateChanged',
+  ACCOUNT_RESET: 'sw:accountReset',
   SYNC_PROGRESS: 'sw:syncProgress',
   SYNC_FINISHED: 'sw:syncFinished',
 }
@@ -57,6 +61,8 @@ export const ERROR = {
   /** 距上次成功同步不足最短更新频率 */
   TOO_SOON: 'TOO_SOON',
   NO_SCOPE: 'NO_SCOPE',
+  /** 加载来源时至少选一个 */
+  SCOPE_EMPTY: 'SCOPE_EMPTY',
   NO_CANDIDATES: 'NO_CANDIDATES',
   POOL_EXHAUSTED: 'POOL_EXHAUSTED',
   /** 该类别已有待看条目，必须先处理掉才能再抽 */

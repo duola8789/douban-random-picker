@@ -14,7 +14,11 @@
         <h1>豆瓣随机</h1>
         <button id="help" class="icon-btn" type="button" aria-label="这是什么">?</button>
       </div>
-      <button id="sync" class="ghost" type="button">同步数据</button>
+      <div class="sync-tools">
+        <span id="sync-status" class="sync-note" role="status">还没同步过</span>
+        <button id="sync" class="ghost" type="button">同步</button>
+      </div>
+      <div id="sync-bar" class="sync-bar" hidden aria-hidden="true"><i></i></div>
     </header>
 
     <nav class="tabs" role="tablist" aria-label="类别">
@@ -74,6 +78,24 @@
       </div>
     </div>
 
+    <div id="scope-panel" class="overlay" hidden>
+      <div class="confirm-card scope-card" role="dialog" aria-modal="true" aria-labelledby="scope-title">
+        <h2 id="scope-title">先从哪儿挑？</h2>
+        <p>选中的这一半会从豆瓣加载，并加入候选池。另一半以后可以在候选池里加载。</p>
+
+        <div class="scope-checks">
+          <label class="check"><input type="checkbox" id="scope-mark" /> 想看 / 想读</label>
+          <label class="check"><input type="checkbox" id="scope-done" /> 看过 / 读过（重温）</label>
+        </div>
+        <p id="scope-error" class="scope-error" hidden></p>
+
+        <div class="confirm-actions scope-actions">
+          <button id="scope-cancel" class="ghost" type="button">取消</button>
+          <button id="scope-start" class="primary" type="button">开始加载</button>
+        </div>
+      </div>
+    </div>
+
     <div id="help-panel" class="overlay" hidden>
       <div class="help-card" role="dialog" aria-label="这是什么">
         <header class="help-head">
@@ -100,11 +122,15 @@
           来自你自己在豆瓣标记的「想看 / 想读」和「看过 / 读过」，用浏览器里已有的登录状态读取。
           不碰账号密码，不保存 cookie，也不修改你在豆瓣上的任何数据。
         </p>
+        <p>
+          更换账号时，先在豆瓣网页里切换登录，再点「更换账号」；旧账号的缓存、候选池和记录会一起清空。
+        </p>
 
         <h3>候选池</h3>
         <p>
-          抽到不想抽的，可以在「候选池」里屏蔽掉它——它不会再从池子里出来。
-          屏蔽只是在你自己的浏览器里记一笔，豆瓣上的收藏不受影响，随时可以恢复。
+          一开始只加载一半（想看或看过）。另一半在候选池里勾上时会从豆瓣加载，
+          加载后这些条目就进入候选池。取消勾选再保存的条目不会被抽到。
+          这些改动只记在你自己的浏览器里，豆瓣上的收藏不受影响，随时可以勾回来。
         </p>
 
         <h3>隐私</h3>

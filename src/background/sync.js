@@ -6,7 +6,7 @@
  */
 
 import { CS, FROM_CS, SW_EVENT, ERROR } from '../lib/messages.js'
-import { DIMENSIONS, allDimensionKeys, isFresh } from '../lib/cache.js'
+import { DIMENSIONS, dimensionKeysFor, isFresh, loadedDimensionKeys } from '../lib/cache.js'
 import { CONFIG } from '../lib/config.js'
 import { cooldownRemaining } from '../lib/cooldown.js'
 import { normalizeInterests } from '../lib/model.js'
@@ -167,22 +167,40 @@ function fetchDimension(tabId, { uid, type: mediaType, status, dimension }) {
 export async function handleSyncResult(message) {
   const { dimension, items, total, partial, error } = message
   const normalized = normalizeInterests(items)
+  const failed = Boolean(partial) || Boolean(error)
+
+  // 部分结果不能覆盖上一份完整数据：旧条目保留，新取到的并入。
+  // 这份缓存也 MUST NOT 因此被当成新鲜——isFresh 会把 partial / error 判为过期。
+  const { caches } = await readAll()
+  const prev = caches[dimension]
+  const merged =
+    failed && Array.isArray(prev?.items) && prev.items.length
+      ? mergeItems(prev.items, normalized)
+      : normalized
 
   await writeCache(dimension, {
-    items: normalized,
-    total: typeof total === 'number' ? total : normalized.length,
+    items: merged,
+    total: typeof total === 'number' ? Math.max(total, merged.length) : merged.length,
     syncedAt: Date.now(),
-    partial: Boolean(partial),
+    partial: failed,
     error: error?.code,
   })
 
   const resolve = pending.get(dimension)
   if (resolve) {
     pending.delete(dimension)
-    resolve({ items: normalized, total, partial, error })
+    resolve({ items: merged, total, partial: failed, error })
   }
 
-  broadcast({ type: SW_EVENT.SYNC_PROGRESS, dimension, fetched: normalized.length, total })
+  broadcast({ type: SW_EVENT.SYNC_PROGRESS, dimension, fetched: merged.length, total })
+}
+
+/** 同一条目以新结果为准，其余旧条目保留原顺序在前 */
+function mergeItems(prev, next) {
+  const byKey = new Map()
+  for (const item of prev) byKey.set(item.key, item)
+  for (const item of next) byKey.set(item.key, item)
+  return [...byKey.values()]
 }
 
 export function handleSyncProgress(message) {
@@ -191,22 +209,73 @@ export function handleSyncProgress(message) {
 
 /**
  * 执行一次同步。
- * @param {{force?: boolean, all?: boolean}} options
+ * @param {{force?: boolean, sources?: string[]}} options
  */
 export async function runSync(options = {}) {
   if (inFlight) return inFlight
 
-  inFlight = doSync(options).finally(() => {
+  inFlight = doSyncLoop(options).finally(() => {
     inFlight = null
   })
   return inFlight
 }
 
-async function doSync({ force = false } = {}) {
+/**
+ * 加载某个来源。
+ *
+ * 如果正好有一次同步在跑，先等它结束再拉——两次并发同步会互相覆盖缓存。
+ * 加载用非 force：目标只有这个来源的维度，冷却不会因为其它来源刚同步过而拦住。
+ */
+export async function loadSources(sources) {
+  if (inFlight) {
+    try {
+      await inFlight
+    } catch {
+      // 上一次同步失败不影响这次加载
+    }
+  }
+  return runSync({ force: false, sources })
+}
+
+/**
+ * 跑一次同步，然后复查目标维度。
+ *
+ * 同步期间用户可能在候选池页扩大了范围；那次改动触发的新同步会直接复用
+ * 这个进行中的任务，所以结束时必须再检查一遍，把新纳入、仍然缺失的维度补上。
+ * 最多补两轮，避免某个维度持续失败时死循环。
+ */
+async function doSyncLoop(options) {
+  let result = await doSync(options)
+
+  for (let round = 0; round < 2; round += 1) {
+    if (!result?.ok) break
+
+    const { caches } = await readAll()
+    const wanted = options.sources?.length
+      ? dimensionKeysFor(options.sources)
+      : loadedDimensionKeys(caches)
+    const attempted = new Set(result.dimensions ?? [])
+    // 只补「这次根本没尝试过」的维度——范围在同步途中被扩大了。
+    // 已经尝试并失败的维度不在这里重试，否则 429 / 网络失败会被立刻放大成三倍请求。
+    const missing = wanted.filter((key) => !attempted.has(key) && !isFresh(caches[key]))
+    if (missing.length === 0) break
+    if (cooldownRemaining(caches, missing, Date.now(), CONFIG.minRefreshMs) > 0) break
+
+    result = await doSync({ ...options, force: false })
+  }
+
+  return result
+}
+
+async function doSync({ force = false, sources } = {}) {
   const { settings, caches } = await readAll()
 
-  // 三个类别始终可用，同步时两个维度都拉
-  const wanted = allDimensionKeys()
+  // 只拉已经加载过的来源；首次加载或显式加载时由 sources 指定
+  const wanted = sources?.length
+    ? dimensionKeysFor(sources)
+    : loadedDimensionKeys(caches).length
+      ? loadedDimensionKeys(caches)
+      : DIMENSIONS.map((d) => d.key)
   const targets = force ? wanted : wanted.filter((key) => !isFresh(caches[key]))
   if (targets.length === 0) return { ok: true, skipped: true, dimensions: [] }
 

@@ -28,6 +28,39 @@
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+  /**
+   * 扩展被重新加载 / 更新后，页面里的旧 content script 会失去上下文。
+   * 这时再调 chrome.runtime 会抛 "Extension context invalidated"，
+   * 而且它的异步形态是未处理的 Promise rejection。
+   * 统一从这里回传：出错就标记失联，后续不再尝试。
+   */
+  let alive = true
+
+  function post(message) {
+    if (!alive) return false
+    try {
+      const result = chrome.runtime.sendMessage(message)
+      if (result && typeof result.catch === 'function') {
+        result.catch(() => {
+          alive = false
+        })
+      }
+      return true
+    } catch {
+      alive = false
+      return false
+    }
+  }
+
+  /** sendResponse 同样可能因上下文失效而抛错 */
+  function respond(fn) {
+    try {
+      fn()
+    } catch {
+      alive = false
+    }
+  }
+
   /** 统一的可序列化错误 */
   function fail(code, extra = {}) {
     return { code, ...extra }
@@ -184,12 +217,17 @@
         raws.push(...page)
         pages += 1
 
-        chrome.runtime.sendMessage({
-          type: FROM_CS.SYNC_PROGRESS,
-          dimension,
-          fetched: raws.length,
-          total: total ?? raws.length,
-        })
+        // 上下文已失效就别再继续拉下去了
+        if (
+          !post({
+            type: FROM_CS.SYNC_PROGRESS,
+            dimension,
+            fetched: raws.length,
+            total: total ?? raws.length,
+          })
+        ) {
+          return
+        }
 
         if (page.length === 0) break
         if (total != null && raws.length >= total) break
@@ -198,7 +236,7 @@
         await sleep(pageIntervalMs)
       }
 
-      chrome.runtime.sendMessage({
+      post({
         type: FROM_CS.SYNC_RESULT,
         dimension,
         items: raws,
@@ -207,7 +245,7 @@
       })
     } catch (err) {
       const code = err?.code ?? 'NETWORK'
-      chrome.runtime.sendMessage({
+      post({
         type: FROM_CS.SYNC_RESULT,
         dimension,
         items: raws,
@@ -266,7 +304,7 @@
     }
 
     if (msg.type === CS.PROBE_LOGIN) {
-      probeLogin().then(sendResponse)
+      probeLogin().then((result) => respond(() => sendResponse(result)))
       return true
     }
 
@@ -278,7 +316,7 @@
     }
 
     if (msg.type === CS.DETAIL) {
-      fetchDetail(msg).then(sendResponse)
+      fetchDetail(msg).then((result) => respond(() => sendResponse(result)))
       return true
     }
   })

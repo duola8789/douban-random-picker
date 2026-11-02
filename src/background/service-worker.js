@@ -6,6 +6,14 @@ import { UI, FROM_CS, SW_EVENT, ERROR } from '../lib/messages.js'
 import { CONFIG } from '../lib/config.js'
 import { ALL_CATEGORIES, buildPools, pick } from '../lib/picker.js'
 import {
+  allSyncedSinceFor,
+  dimensionKeysFor,
+  isFresh,
+  loadedDimensionKeys,
+  loadedSources,
+} from '../lib/cache.js'
+import { SOURCES } from '../lib/scope.js'
+import {
   appendRecord,
   makeRecord,
   pendingFor,
@@ -35,14 +43,35 @@ chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => 
 const RECENT_RECORDS = 200
 
 async function getState() {
-  const { settings, caches, records } = await readAll()
+  const { settings, caches, records, hidden } = await readAll()
   return {
     ok: true,
     settings,
     caches: summarizeCaches(caches),
+    counts: countEligible(caches, records, hidden),
     records: enrichRecords(records, caches).slice(-RECENT_RECORDS),
     syncing: isSyncing(),
   }
+}
+
+/**
+ * 各类别还能抽多少条。
+ *
+ * 和页签上「这一类的条目数」不是一回事：已移出和本地标记完成的条目
+ * 不会再被抽到，计数要把它们减掉，否则空态文案会和实际对不上。
+ */
+function countEligible(caches, records, hidden) {
+  const pools = buildPools(caches)
+  const doneKeys = new Set(
+    (records ?? []).filter((r) => r.state === 'done').map((r) => r.key),
+  )
+  const counts = { movie: 0, tv: 0, book: 0 }
+  for (const [category, items] of Object.entries(pools)) {
+    counts[category] = items.filter(
+      (item) => !doneKeys.has(item.key) && !(item.key in (hidden ?? {})),
+    ).length
+  }
+  return counts
 }
 
 /**
@@ -118,14 +147,26 @@ function summarizeCaches(caches) {
 }
 
 /** 跑一次同步并广播结束事件，UI 靠它刷新 */
-async function startSync({ force = false } = {}) {
-  const result = await runSync({ force })
-  if (result?.ok) {
-    // 同步完成后才判断得了「条目是否还在豆瓣收藏里」，清理放在这里
-    await cleanHidden().catch(() => {})
+async function startSync({ force = false, sources } = {}) {
+  const startedAt = Date.now()
+  const result = await runSync({ force, sources })
+  if (result?.ok && !result.partial) {
+    await cleanHiddenIfComplete(result.dimensions, startedAt).catch(() => {})
   }
   chrome.runtime.sendMessage({ type: SW_EVENT.SYNC_FINISHED, result }).catch(() => {})
   return result
+}
+
+/**
+ * 只在本次同步覆盖到的维度全部完整成功时清理。
+ *
+ * 否则会把这次没拉到的条目误判成「已从豆瓣消失」，进而删掉本来还有效的
+ * 移出记录。未加载的来源本来就没有本地记录，不参与判断。
+ */
+async function cleanHiddenIfComplete(dimensions, startedAt) {
+  const { caches } = await readAll()
+  if (!allSyncedSinceFor(caches, dimensions, startedAt)) return []
+  return cleanHidden()
 }
 
 /** 清理失效的屏蔽记录：屏蔽超过 90 天，且条目已不在同步结果里 */
@@ -234,7 +275,9 @@ async function handleDeleteRecord(key) {
 async function handleGetCandidates() {
   const { caches, hidden, records } = await readAll()
 
-  // 同一条目可能暂时同时留在旧的 mark 与新的 done 缓存里，按 done 优先合并
+  // 同一条目可能暂时同时留在旧的 mark 与新的 done 缓存里，按 done 优先合并。
+  // 返回全部条目：列表由界面按来源、时间、状态筛选；池外记录里
+  // 可能包含已经不在缓存中的条目，界面需要靠 hidden 自己补出来。
   const byKey = new Map()
   for (const entry of Object.values(caches ?? {})) {
     for (const item of entry?.items ?? []) {
@@ -249,7 +292,20 @@ async function handleGetCandidates() {
   }
 
   const pendingKeys = records.filter((r) => r.state === 'pending').map((r) => r.key)
-  return { ok: true, items, hidden, pendingKeys }
+
+  // 已加载的来源都有新鲜、完整的结果时，才敢判断某条已经不在豆瓣收藏里。
+  const loaded = loadedSources(caches)
+  const loadedDims = dimensionKeysFor(loaded)
+  const complete = loadedDims.length > 0 && loadedDims.every((key) => isFresh(caches[key]))
+
+  return {
+    ok: true,
+    items,
+    hidden,
+    pendingKeys,
+    loaded,
+    complete,
+  }
 }
 
 /**
@@ -277,8 +333,55 @@ async function handleHideCandidates(keys) {
     applied.push(key)
   }
 
-  if (applied.length) await writeHidden(next)
+  if (applied.length) {
+    await writeHidden(next)
+    // 屏蔽会改变侧边栏的可抽数量
+    chrome.runtime.sendMessage({ type: SW_EVENT.STATE_CHANGED }).catch(() => {})
+  }
   return { ok: true, hidden: next, applied, skipped }
+}
+
+/**
+ * 保存候选集的勾选改动。
+ *
+ * hide = 这次被取消勾选的条目，unhide = 重新勾上的条目。
+ * 待看的条目不能移出——这条裁决放在写存储这一侧，界面禁用只是第二道。
+ */
+async function handleSavePool({ hide = [], unhide = [] } = {}) {
+  // 同步期间不接受候选集改动：列表马上会被刷新，写 hidden 也可能和清理重叠
+  if (isSyncing()) return { ok: false, error: { code: ERROR.SYNCING } }
+
+  const { records, hidden } = await readAll()
+  const pending = new Set(records.filter((r) => r.state === 'pending').map((r) => r.key))
+  const next = { ...hidden }
+  const now = Date.now()
+  const appliedHide = []
+  const appliedUnhide = []
+  const skipped = []
+
+  for (const key of Array.isArray(unhide) ? unhide : []) {
+    if (typeof key === 'string' && key in next) {
+      delete next[key]
+      appliedUnhide.push(key)
+    }
+  }
+
+  for (const key of Array.isArray(hide) ? hide : []) {
+    if (typeof key !== 'string' || !key) continue
+    if (pending.has(key)) {
+      skipped.push(key)
+      continue
+    }
+    if (!(key in next)) next[key] = now
+    appliedHide.push(key)
+  }
+
+  if (appliedHide.length || appliedUnhide.length) {
+    await writeHidden(next)
+    chrome.runtime.sendMessage({ type: SW_EVENT.STATE_CHANGED }).catch(() => {})
+  }
+
+  return { ok: true, hidden: next, appliedHide, appliedUnhide, skipped }
 }
 
 async function handleUnhideCandidates(keys) {
@@ -293,8 +396,45 @@ async function handleUnhideCandidates(keys) {
     }
   }
 
-  if (applied.length) await writeHidden(next)
+  if (applied.length) {
+    await writeHidden(next)
+    chrome.runtime.sendMessage({ type: SW_EVENT.STATE_CHANGED }).catch(() => {})
+  }
   return { ok: true, hidden: next, applied }
+}
+
+/**
+ * 加载来源。
+ *
+ * 只拉指定的那一半；加载回来的条目默认就在候选池里（没有被 hidden 记录）。
+ * 同步失败时数据没到，界面要还原来源勾选并提示重试。
+ */
+async function handleLoadSources(raw) {
+  const requested = Array.isArray(raw) ? raw : []
+  const sources = SOURCES.filter((source) => requested.includes(source))
+  if (sources.length === 0) {
+    return { ok: false, error: { code: ERROR.SCOPE_EMPTY } }
+  }
+
+  const result = await startSync({ force: false, sources })
+  const { caches } = await readAll()
+  return { ok: true, sources, loaded: loadedSources(caches), sync: result, error: result?.error }
+}
+
+/**
+ * 更换账号。
+ *
+ * 扩展不处理登录：用户必须先在豆瓣网页里切换账号。这里只清掉旧账号
+ * 留在本机的缓存、移出记录与抽取历史，再清 uid，让界面重新探测。
+ * 同步进行中不允许执行，避免和缓存写入打架。
+ */
+async function handleResetAccount() {
+  if (isSyncing()) return { ok: false, error: { code: ERROR.SYNCING } }
+
+  await chrome.storage.local.set({ caches: {}, records: [], hidden: {} })
+  const settings = await writeSettings({ uid: '' })
+  chrome.runtime.sendMessage({ type: SW_EVENT.ACCOUNT_RESET }).catch(() => {})
+  return { ok: true, settings }
 }
 
 /** 清空历史，但保留仍在待看的记录——否则清空就成了重新抽的后门 */async function handleClearHistory() {
@@ -440,6 +580,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       handleHideCandidates(message.keys).then(sendResponse)
       return true
 
+    case UI.SAVE_POOL:
+      handleSavePool(message).then(sendResponse)
+      return true
+
     case UI.UNHIDE_CANDIDATES:
       handleUnhideCandidates(message.keys).then(sendResponse)
       return true
@@ -464,6 +608,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         .catch(() => sendResponse({ ok: false, error: { code: ERROR.NETWORK } }))
       return true
 
+    case UI.RESET_ACCOUNT:
+      handleResetAccount().then(sendResponse)
+      return true
+
     case UI.SET_UID:
       writeSettings({ uid: String(message.uid ?? '').trim() }).then((settings) =>
         sendResponse({ ok: true, settings }),
@@ -474,6 +622,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       writeSettings({ category: message.category }).then((settings) =>
         sendResponse({ ok: true, settings }),
       )
+      return true
+
+    case UI.LOAD_SOURCES:
+      handleLoadSources(message.sources).then(sendResponse)
       return true
 
     case UI.SAVE_DETAIL:

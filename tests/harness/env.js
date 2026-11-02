@@ -65,7 +65,15 @@ function fakeResponse(status, url, body) {
   }
 }
 
-export function createEnv({ uid = '20250101', loggedIn = true, mineRedirect = true, domLinks = null } = {}) {
+export function createEnv({
+  uid = '20250101',
+  loggedIn = true,
+  mineRedirect = true,
+  domLinks = null,
+  /** 让某个维度从第几页开始返回 500，用来模拟分页中途失败 */
+  failDimension = null,
+  failAfterPage = 1,
+} = {}) {
   const dataset = buildDataset()
 
   // ---------------------------------------------------------------- storage
@@ -203,6 +211,10 @@ export function createEnv({ uid = '20250101', loggedIn = true, mineRedirect = tr
 
     try {
       // 模拟网络往返，让并发/串行可观测
+      const pageIndex = count > 0 ? Math.floor(start / count) : 0
+      if (failDimension === slotKey && pageIndex >= failAfterPage) {
+        return fakeResponse(500, href, {})
+      }
       await new Promise((r) => setTimeout(r, 10))
       const all =
         status === 'done'

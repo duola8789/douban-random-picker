@@ -53,7 +53,10 @@ test('抽取只从指定类别里取，并记为待看', async () => {
   assert.equal(res.ok, true, `抽取失败：${JSON.stringify(res.error)}`)
   assert.equal(res.item.category, 'book')
   assert.equal(res.record.state, 'pending')
-  assert.equal(res.record.markStatus, 'mark')
+  assert.ok(
+    res.record.markStatus === 'mark' || res.record.markStatus === 'done',
+    '记录应保留豆瓣标记状态',
+  )
   assert.equal(res.records.length, 1)
 })
 

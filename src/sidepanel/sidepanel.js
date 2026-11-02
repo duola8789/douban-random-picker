@@ -6,7 +6,7 @@
  */
 
 import { UI, SW_EVENT } from '../lib/messages.js'
-import { allDimensionKeys, isFresh } from '../lib/cache.js'
+import { latestSyncedAt } from '../lib/cache.js'
 import { pendingFor, canSkip } from '../lib/history.js'
 import { CATEGORY_LABEL, CATEGORY_UNIT, sourceTag, stateTag, renderTag } from '../lib/labels.js'
 
@@ -15,7 +15,6 @@ const DRAW_LABEL = '开始吧'
 
 /** 提示语里的量词：挑一部 / 挑一本 */
 const DRAW_UNIT = { movie: '一部', tv: '一部', book: '一本' }
-const COUNT_UNIT = { movie: '部', tv: '部', book: '本' }
 
 const $ = (sel) => document.querySelector(sel)
 
@@ -28,6 +27,8 @@ const el = {
   openDouban: $('#open-douban'),
   skip: $('#skip'),
   sync: $('#sync'),
+  syncStatus: $('#sync-status'),
+  syncBar: $('#sync-bar'),
   tabs: [...document.querySelectorAll('.tab')],
   historyList: $('#history-list'),
   historyCount: $('#history-count'),
@@ -45,11 +46,19 @@ const el = {
   confirmOk: $('#confirm-ok'),
   confirmCancel: $('#confirm-cancel'),
   helpClose: $('#help-close'),
+  scopePanel: $('#scope-panel'),
+  scopeMark: $('#scope-mark'),
+  scopeDone: $('#scope-done'),
+  scopeError: $('#scope-error'),
+  scopeStart: $('#scope-start'),
+  scopeCancel: $('#scope-cancel'),
 }
 
 const state = {
   settings: null,
   caches: {},
+  /** 各类别还能抽多少条（已减去屏蔽与本地标记完成） */
+  counts: { movie: 0, tv: 0, book: 0 },
   records: [],
   active: 'movie',
   intro: '',
@@ -58,17 +67,16 @@ const state = {
   syncing: false,
   drawing: false,
   needsSetup: false,
-  probeReason: null,
   toast: null,
   /** 标记完成后的一次性提示：{ text, url } */
   hint: null,
   blocking: null,
-  progress: null,
-  cooldownUntil: 0,
+  /** 同步完成后的短暂状态：「更新完成」 */
+  syncNotice: '',
+  noticeTimer: null,
 }
 
 let cardRefs = null
-let cooldownTimer = null
 
 /** 侧边栏只展示最近几条，完整列表在独立页面 */
 const RECENT_IN_PANEL = 3
@@ -100,24 +108,22 @@ async function boot() {
 
   state.settings = res.settings
   state.caches = res.caches ?? {}
+  state.counts = res.counts ?? state.counts
   state.records = res.records ?? []
   state.active = res.settings?.category ?? 'movie'
   state.syncing = Boolean(res.syncing)
   render()
 
-  // 首次使用：直接同步。同步过程本身会做登录探测并顺手拿到 uid，
-  // 不必先单独探测一次再同步——那会多开一个标签页、多等一次页面加载。
-  if (!state.settings.uid) {
-    const result = await runSync({ force: true })
-    if (!result?.ok) {
-      state.needsSetup = true
-      state.probeReason = result?.error?.reason ?? result?.error?.code ?? 'unknown'
-    }
+  // 首次使用：本地没有任何数据。先识别账号，再让用户挑一开始加载哪一半。
+  const firstRun = !hasAnyCache(state.caches)
+  if (firstRun) {
+    if (!state.settings.uid) await detectUid()
     render()
+    if (state.settings.uid) openFirstLoad()
     return
   }
 
-  await ensureFresh()
+  // 之后的打开只读缓存，不主动同步。想更新就点同步按钮。
   render()
 }
 
@@ -127,7 +133,6 @@ async function detectUid() {
   if (!uid) {
     const reason = probe?.login?.reason ?? probe?.error?.code ?? 'unknown'
     console.warn(`[豆瓣随机] 自动识别 uid 失败 reason=${reason}`, probe)
-    state.probeReason = reason
     state.needsSetup = true
     render()
     return
@@ -135,19 +140,19 @@ async function detectUid() {
   await send({ type: UI.SET_UID, uid })
   state.settings.uid = uid
   state.needsSetup = false
-  state.probeReason = null
 }
 
-async function ensureFresh() {
-  const stale = allDimensionKeys().filter((key) => !isFresh(state.caches[key]))
-  if (stale.length === 0) return
-  await runSync({ force: false })
+/** 缓存里有没有任何同步结果（含同步过但是空结果的情况） */
+function hasAnyCache(caches) {
+  return Object.values(caches ?? {}).some(
+    (entry) => (entry?.count ?? 0) > 0 || (entry?.syncedAt ?? 0) > 0,
+  )
 }
 
 async function runSync({ force = false } = {}) {
   if (state.syncing) return
   state.syncing = true
-  state.progress = null
+  state.syncNotice = ''
   state.blocking = null
   state.toast = null
   render()
@@ -155,12 +160,24 @@ async function runSync({ force = false } = {}) {
   const res = await send({ type: UI.SYNC, force })
 
   state.syncing = false
-  state.progress = null
 
   if (res?.error) applyError(res.error)
+  else if (res?.ok && !res?.skipped) showSyncNotice()
+
   await refreshState()
   render()
   return res
+}
+
+/** 同步完成后的状态行：手动与自动都展示，自动那次不额外弹提示 */
+function showSyncNotice() {
+  state.syncNotice = '更新完成'
+  clearTimeout(state.noticeTimer)
+  state.noticeTimer = setTimeout(() => {
+    state.syncNotice = ''
+    // 只收起状态行，不重建舞台：待看卡片正在展示时不该被重绘
+    renderSyncStatus()
+  }, 2400)
 }
 
 function applyError(error, scope = '同步') {
@@ -169,7 +186,6 @@ function applyError(error, scope = '同步') {
   if (!notice) return
   if (notice.blocking) state.blocking = notice
   else state.toast = notice.text
-  if (notice.cooldownMs) setCooldown(notice.cooldownMs)
 }
 
 /** 直接把对象丢给 console 只会显示 [object Object]，把关键字段拼进文本 */
@@ -184,6 +200,7 @@ async function refreshState() {
   if (!res?.ok) return
   state.settings = res.settings
   state.caches = res.caches ?? {}
+  state.counts = res.counts ?? state.counts
   state.records = res.records ?? []
 }
 
@@ -300,6 +317,7 @@ async function markDone() {
   state.records = res.records ?? state.records
   state.detailKey = null
   state.intro = ''
+  await refreshState()
 
   // 只对「看新」的条目提示去豆瓣标记；重温条目本来就是看过的
   state.hint =
@@ -417,24 +435,26 @@ function noticeFor(error) {
     case 'NO_UID':
       state.needsSetup = true
       return { text: '还没有设置豆瓣账号。', blocking: true }
-    case 'AUTH_REQUIRED': {
-      const reason = error?.reason ? `（${error.reason}）` : ''
+    case 'AUTH_REQUIRED':
       return {
-        text: `没能确认登录状态。请先在豆瓣网页登录，再回来同步。${reason}`,
+        text: '没能确认登录状态。请先在豆瓣网页登录，再回来同步。',
+        highlight: '在豆瓣网页登录',
         action: { label: '打开豆瓣', kind: 'login' },
         blocking: true,
       }
-    }
     case 'NO_DOUBAN_TAB':
       return { text: '没能打开豆瓣页面。请先手动打开一个豆瓣页面，再回来同步。', blocking: true }
     case 'RATE_LIMITED':
       return { text: '豆瓣请求过于频繁，已暂停。请过一会儿再试。', blocking: false }
-    case 'TOO_SOON':
+    case 'TOO_SOON': {
+      const minutes = Math.max(1, Math.ceil((error?.retryAfterMs ?? 0) / 60000))
       return {
-        text: '刚同步过，稍后再试。已有的数据没有受影响。',
+        text: `刚同步过，${minutes} 分钟后再来。已有的数据没有受影响。`,
         blocking: false,
-        cooldownMs: error?.retryAfterMs ?? 0,
       }
+    }
+    case 'SCOPE_EMPTY':
+      return { text: '候选池至少要留一个来源。', blocking: false }
     case 'PENDING_EXISTS':
       return { text: '这一部还没了结。看完它，或者点「不想看它」。', blocking: false }
     case 'SKIP_LIMIT':
@@ -455,22 +475,7 @@ function noticeFor(error) {
   }
 }
 
-// ---------------------------------------------------------------- 冷却
-
-function setCooldown(ms) {
-  if (!ms || ms <= 0) return
-  state.cooldownUntil = Date.now() + ms
-  clearInterval(cooldownTimer)
-  cooldownTimer = setInterval(() => {
-    if (Date.now() >= state.cooldownUntil) {
-      state.cooldownUntil = 0
-      clearInterval(cooldownTimer)
-    }
-    updateSyncButton()
-  }, 1000)
-  updateSyncButton()
-  syncScrollFade()
-}
+// ---------------------------------------------------------------- 状态
 
 /** 卡片内容超出时，底部渐隐，避免文字直接切在卡片底边上 */
 function syncScrollFade() {
@@ -486,22 +491,60 @@ function syncScrollFade() {
 }
 
 function updateSyncButton() {
-  const left = state.cooldownUntil - Date.now()
   if (state.syncing) {
     el.sync.textContent = '同步中'
     el.sync.disabled = true
     return
   }
-  if (left > 0) {
-    const s = Math.ceil(left / 1000)
-    const mm = Math.floor(s / 60)
-    const ss = String(s % 60).padStart(2, '0')
-    el.sync.textContent = `同步 ${mm}:${ss}`
-    el.sync.disabled = true
-    return
-  }
+  // 冷却期不把按钮变成倒计时：按钮保持可点，点了再说明还要等多久
   el.sync.textContent = '同步'
   el.sync.disabled = false
+}
+
+/** 提示文案里需要强调的短语（目前是登录指引）用加粗主色显示 */
+function appendNoticeText(el, text, highlight) {
+  if (!highlight || !text.includes(highlight)) {
+    el.textContent = text
+    return
+  }
+  const [before, after] = text.split(highlight)
+  if (before) el.append(document.createTextNode(before))
+  const strong = document.createElement('strong')
+  strong.className = 'notice-strong'
+  strong.textContent = highlight
+  el.append(strong)
+  if (after) el.append(document.createTextNode(after))
+}
+
+/** 同步状态放在同步按钮左边：空闲时是上次同步日期，同步中是进行状态。 */
+function renderSyncStatus() {
+  if (!el.syncStatus) return
+
+  if (state.syncing) {
+    el.syncStatus.textContent = '正在同步'
+    el.syncStatus.title = ''
+    if (el.syncBar) el.syncBar.hidden = false
+    return
+  }
+
+  if (el.syncBar) el.syncBar.hidden = true
+
+  if (state.syncNotice) {
+    el.syncStatus.textContent = state.syncNotice
+    el.syncStatus.title = ''
+    return
+  }
+
+  const at = latestSyncedAt(state.caches)
+  if (!at) {
+    el.syncStatus.textContent = '还没同步过'
+    el.syncStatus.title = ''
+    return
+  }
+
+  // 顶栏空间有限：只显示到天，完整时间放进 title
+  el.syncStatus.textContent = `上次同步 ${formatDay(at)}`
+  el.syncStatus.title = `上次同步：${formatTime(at)}`
 }
 
 // ---------------------------------------------------------------- 渲染
@@ -514,6 +557,7 @@ function render() {
   renderHistory()
   renderActions()
   updateSyncButton()
+  renderSyncStatus()
 }
 
 function renderActions() {
@@ -522,7 +566,10 @@ function renderActions() {
   el.pendingActions.hidden = !pending
 
   el.draw.disabled =
-    state.syncing || state.drawing || state.needsSetup || Boolean(state.blocking)
+    state.syncing ||
+    state.drawing ||
+    state.needsSetup ||
+    Boolean(state.blocking)
   el.draw.textContent = DRAW_LABEL
 
   if (!pending) return
@@ -659,7 +706,7 @@ function errorView(notice) {
   const title = document.createElement('strong')
   title.textContent = '暂时抽不了'
   const hint = document.createElement('span')
-  hint.textContent = notice.text
+  appendNoticeText(hint, notice.text, notice.highlight)
   wrap.append(title, hint)
 
   if (notice.action) {
@@ -683,19 +730,22 @@ function setupView() {
   const title = document.createElement('strong')
   title.textContent = '先告诉我在哪儿找你'
   const hint = document.createElement('span')
-  const base = '没能自动识别。请先在豆瓣网页登录，或直接粘贴个人主页地址。'
-  hint.textContent = state.probeReason ? `${base}（${state.probeReason}）` : base
+  appendNoticeText(
+    hint,
+    '没能自动识别你的豆瓣账号。请先在豆瓣网页登录；也可以粘贴你自己的个人主页地址——扩展只从里面取用户 ID，不会替你登录。',
+    '在豆瓣网页登录',
+  )
 
   const form = document.createElement('form')
   form.className = 'setup'
   const input = document.createElement('input')
   input.type = 'text'
-  input.placeholder = 'https://www.douban.com/people/...'
+  input.placeholder = 'https://www.douban.com/people/你的ID/'
   input.autocomplete = 'off'
   const submit = document.createElement('button')
   submit.type = 'submit'
   submit.className = 'primary'
-  submit.textContent = '保存并同步'
+  submit.textContent = '保存并继续'
 
   form.append(input, submit)
   form.addEventListener('submit', async (event) => {
@@ -710,6 +760,14 @@ function setupView() {
     state.toast = null
     await send({ type: UI.SET_UID, uid })
     state.settings.uid = uid
+
+    // 首次使用：账号刚确定，接下来先挑一开始加载哪一半
+    if (!hasAnyCache(state.caches)) {
+      openFirstLoad()
+      render()
+      return
+    }
+
     await runSync({ force: true })
   })
 
@@ -720,6 +778,7 @@ function setupView() {
   retry.addEventListener('click', async () => {
     retry.disabled = true
     await detectUid()
+    if (state.settings.uid && !hasAnyCache(state.caches)) openFirstLoad()
     render()
   })
 
@@ -737,6 +796,57 @@ function parseUid(value) {
   return ''
 }
 
+/**
+ * 第一次使用：挑一开始加载哪一半。
+ *
+ * 加载回来的条目会直接进入候选池；另一半以后可以在候选池页按需加载。
+ */
+function openFirstLoad() {
+  el.scopeMark.checked = true
+  el.scopeDone.checked = false
+  el.scopeError.hidden = true
+  el.scopeError.textContent = ''
+  el.scopePanel.hidden = false
+  queueMicrotask(() => el.scopeStart.focus())
+}
+
+function closeFirstLoad() {
+  el.scopePanel.hidden = true
+}
+
+async function submitFirstLoad() {
+  const sources = []
+  if (el.scopeMark.checked) sources.push('mark')
+  if (el.scopeDone.checked) sources.push('done')
+
+  if (sources.length === 0) {
+    el.scopeError.hidden = false
+    el.scopeError.textContent = '先选一半开始，不然没有数据可抽。'
+    return
+  }
+
+  closeFirstLoad()
+  state.syncing = true
+  state.syncNotice = ''
+  state.toast = null
+  render()
+
+  const res = await send({ type: UI.LOAD_SOURCES, sources })
+  state.syncing = false
+
+  if (!res?.ok) {
+    applyError(res?.error, '加载')
+    render()
+    return
+  }
+
+  if (res.sync?.error) applyError(res.sync.error, '加载')
+  else if (res.sync?.ok && !res.sync?.skipped) showSyncNotice()
+
+  await refreshState()
+  render()
+}
+
 function placeholderView() {
   const wrap = document.createElement('div')
   wrap.className = 'placeholder'
@@ -746,12 +856,10 @@ function placeholderView() {
 
   if (state.syncing) {
     title.textContent = '正在同步'
-    hint.textContent = state.progress
-      ? `已取回 ${state.progress.fetched} / ${state.progress.total} 条`
-      : '正在读取你在豆瓣的标记…'
+    hint.textContent = '正在读取你在豆瓣的标记…'
   } else if (countByCategory()[state.active] === 0) {
     title.textContent = '这一类还空着'
-    hint.textContent = `点右上角的「同步数据」拉一次，或者先去豆瓣添几${COUNT_UNIT[state.active]}。`
+    hint.textContent = '候选池里还没有这一类的条目。点右上角同步一次，或者去候选池里加载另一个来源。'
   } else {
     const n = countByCategory()[state.active]
     title.textContent = '少一点选择，多一点开始'
@@ -759,8 +867,26 @@ function placeholderView() {
   }
 
   wrap.append(title, hint)
+
+  if (!state.syncing && countByCategory()[state.active] === 0) {
+    wrap.append(scopeAdjustLink())
+  }
   if (state.hint) wrap.append(hintNote())
   return wrap
+}
+
+/** 池子空了，给一个能去候选池的入口，而不是让用户去猜 */
+function scopeAdjustLink() {
+  const link = document.createElement('button')
+  link.type = 'button'
+  link.className = 'link'
+  link.textContent = '打开候选池 →'
+  link.addEventListener('click', () => {
+    chrome.tabs.create({
+      url: chrome.runtime.getURL(`src/candidates/index.html?cat=${state.active}`),
+    })
+  })
+  return link
 }
 
 /** 标记完成后的轻提示：整行就是入口，点一下去条目页，不弹窗、不自动打开 */
@@ -779,13 +905,7 @@ function hintNote() {
 }
 
 function countByCategory() {
-  const counts = { movie: 0, tv: 0, book: 0 }
-  for (const entry of Object.values(state.caches)) {
-    counts.movie += entry?.byCategory?.movie ?? 0
-    counts.tv += entry?.byCategory?.tv ?? 0
-    counts.book += entry?.byCategory?.book ?? 0
-  }
-  return counts
+  return state.counts ?? { movie: 0, tv: 0, book: 0 }
 }
 
 // ---------------------------------------------------------------- 卡片
@@ -1043,6 +1163,16 @@ function renderHistory() {
   }
 }
 
+/** 顶栏用：今天 / 10-28 */
+function formatDay(ts) {
+  const d = new Date(ts)
+  const now = new Date()
+  if (d.toDateString() === now.toDateString()) return '今天'
+  const mo = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${mo}-${dd}`
+}
+
 function formatTime(ts) {
   if (!ts) return ''
   const d = new Date(ts)
@@ -1071,7 +1201,11 @@ for (const tab of el.tabs) {
 }
 
 el.draw.addEventListener('click', draw)
-el.sync.addEventListener('click', () => runSync({ force: true }))
+el.sync.addEventListener('click', () => {
+  // 还没有任何数据时，先挑一半加载；否则就是一次普通的手动同步
+  if (!hasAnyCache(state.caches)) openFirstLoad()
+  else runSync({ force: true })
+})
 el.skip.addEventListener('click', skip)
 el.markDone.addEventListener('click', markDone)
 
@@ -1090,16 +1224,38 @@ el.viewCandidates.addEventListener('click', () => {
   })
 })
 
-el.resetAccount.addEventListener('click', async () => {
-  await send({ type: UI.SET_UID, uid: '' })
-  state.settings.uid = ''
-  state.toast = null
-  state.blocking = null
-  state.probeReason = null
-  state.needsSetup = false
-  render()
-  await detectUid()
-  render()
+el.resetAccount.addEventListener('click', () => {
+  openConfirm({
+    title: '更换豆瓣账号？',
+    text: '先在豆瓣网页切换账号。确认后会清空旧账号在本机的缓存、候选池和记录。',
+    okLabel: '继续',
+    onOk: async () => {
+      const res = await send({ type: UI.RESET_ACCOUNT })
+      if (!res?.ok) {
+        state.toast =
+          res?.error?.code === 'SYNCING' ? '正在同步，稍后再试。' : '没能清空旧账号的数据，请重试。'
+        render()
+        return
+      }
+
+      state.settings = res.settings ?? { ...state.settings, uid: '' }
+      state.caches = {}
+      state.counts = { movie: 0, tv: 0, book: 0 }
+      state.records = []
+      state.toast = null
+      state.blocking = null
+      state.needsSetup = false
+      state.syncNotice = ''
+      state.detailKey = null
+      state.intro = ''
+      historySignature = null
+      render()
+
+      await detectUid()
+      if (state.settings.uid && !hasAnyCache(state.caches)) openFirstLoad()
+      render()
+    },
+  })
 })
 
 el.clearHistory.addEventListener('click', () => {
@@ -1142,6 +1298,12 @@ el.confirmOk.addEventListener('click', async () => {
   const action = confirmAction
   closeConfirm()
   if (action) await action()
+})
+
+el.scopeStart.addEventListener('click', () => submitFirstLoad())
+el.scopeCancel.addEventListener('click', closeFirstLoad)
+el.scopePanel.addEventListener('click', (event) => {
+  if (event.target === el.scopePanel) closeFirstLoad()
 })
 
 el.help.addEventListener('click', () => {
@@ -1193,7 +1355,8 @@ el.helpPanel.addEventListener('click', (event) => {
 })
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return
-  if (!el.confirmPanel.hidden) closeConfirm()
+  if (!el.scopePanel.hidden) closeFirstLoad()
+  else if (!el.confirmPanel.hidden) closeConfirm()
   else el.helpPanel.hidden = true
 })
 
@@ -1212,18 +1375,24 @@ async function runNoticeAction(kind) {
 }
 
 chrome.runtime.onMessage.addListener((message) => {
+  if (message?.type === SW_EVENT.STATE_CHANGED) {
+    // 候选池页改了范围：即便不触发同步，计数与空态也要跟着变
+    refreshState().then(() => render())
+    return
+  }
   if (message?.type === SW_EVENT.SYNC_PROGRESS) {
-    state.progress = { fetched: message.fetched ?? 0, total: message.total ?? 0 }
+    // 进度数值不用，只当作「同步还在进行」的信号
     state.syncing = true
     if (!currentPending() && !state.blocking) renderStage()
-    el.draw.disabled = true
-    el.sync.disabled = true
+    renderActions()
+    updateSyncButton()
+    renderSyncStatus()
     return
   }
   if (message?.type === SW_EVENT.SYNC_FINISHED) {
     state.syncing = false
-    state.progress = null
     if (message.result?.error) applyError(message.result.error)
+    else if (message.result?.ok && !message.result?.skipped) showSyncNotice()
     refreshState().then(() => render())
   }
 })

@@ -127,15 +127,26 @@ export function groupHistoryByCategory(history) {
 
 /**
  * 把缓存条目按类别分桶，供 pick 使用。
+ *
+ * 缓存里只有已经加载过的来源；池子本身由候选池页的勾选（hidden 集合）决定。
+ * 同一 key 出现在两个维度时以「看过 / 读过」为准，和候选池页的合并规则一致。
+ *
  * @param {Record<string, {items: any[]}>} caches  形如 { "movie:mark": {...}, "book:mark": {...} }
  */
 export function buildPools(caches) {
   /** @type {Record<Category, any[]>} */
   const pools = { movie: [], tv: [], book: [] }
+  /** @type {Map<string, any>} */
+  const byKey = new Map()
+
   for (const entry of Object.values(caches ?? {})) {
     for (const item of entry?.items ?? []) {
-      if (pools[item.category]) pools[item.category].push(item)
+      if (!pools[item.category]) continue
+      const prev = byKey.get(item.key)
+      if (!prev || (prev.status !== 'done' && item.status === 'done')) byKey.set(item.key, item)
     }
   }
+
+  for (const item of byKey.values()) pools[item.category].push(item)
   return pools
 }

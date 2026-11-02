@@ -59,6 +59,37 @@ function first(list) {
   return Array.isArray(list) ? str(list[0]) : str(list)
 }
 
+/** Date -> YYYY-MM-DD（本地时区） */
+function dayOf(date) {
+  const y = date.getFullYear()
+  const mo = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${mo}-${d}`
+}
+
+/**
+ * 标记时间归一化。
+ *
+ * 移动端接口的 create_time 是秒级时间戳，早期按字符串处理导致 markedOn
+ * 一直为空，候选池的时间筛选会把所有条目都滤掉。
+ * 秒 / 毫秒时间戳、数字字符串、"YYYY-MM-DD HH:mm:ss" 都接受。
+ */
+function markedOnOf(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return dayOf(new Date(value > 1e12 ? value : value * 1000))
+  }
+  if (typeof value === 'string') {
+    const text = value.trim()
+    const day = /^(\d{4}-\d{2}-\d{2})/.exec(text)
+    if (day) return day[1]
+    if (/^\d{10,13}$/.test(text)) {
+      const n = Number(text)
+      return dayOf(new Date(n > 1e12 ? n : n * 1000))
+    }
+  }
+  return undefined
+}
+
 /**
  * @param {any} raw  接口 interests[] 中的一项
  * @returns {object|null} 无法识别出 subject.id 时返回 null
@@ -87,8 +118,9 @@ export function normalizeInterest(raw) {
     actors: names(subject.actors),
     genres: joined(subject.genres),
     pubdate: first(subject.pubdate) ?? str(subject.release_date),
-    // create_time 是 "2018-04-06 21:14:37" 这样的字符串，只保留日期
-    markedOn: str(raw?.create_time)?.slice(0, 10),
+    // create_time 可能是秒级时间戳（实测移动端接口），也可能是
+    // "2018-04-06 21:14:37" 这样的字符串，统一收敛成 YYYY-MM-DD
+    markedOn: markedOnOf(raw?.create_time),
     // 以下三项可能缺失：v2 的豆列来源没有「我的」数据
     myRating: ratingOf(raw?.rating?.value),
     myComment: str(raw?.comment),

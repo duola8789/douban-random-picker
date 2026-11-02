@@ -77,3 +77,17 @@ test('未知 type 落到 movie', () => {
   assert.equal(categoryOf({ type: 'unknown' }), 'movie')
   assert.equal(categoryOf(undefined), 'movie')
 })
+
+test('markedOn 兼容秒级时间戳、毫秒时间戳与日期字符串', () => {
+  const fromSeconds = normalizeInterest({ ...movieRaw, create_time: 1700000000 })
+  assert.match(fromSeconds.markedOn, /^\d{4}-\d{2}-\d{2}$/, '秒级时间戳应转成日期')
+
+  const fromMillis = normalizeInterest({ ...movieRaw, create_time: 1792713600000 })
+  assert.match(fromMillis.markedOn, /^\d{4}-\d{2}-\d{2}$/, '毫秒时间戳应转成日期')
+
+  const fromText = normalizeInterest({ ...movieRaw, create_time: '2026-10-23 20:00:00' })
+  assert.equal(fromText.markedOn, '2026-10-23')
+
+  const missing = normalizeInterest({ ...movieRaw, create_time: undefined })
+  assert.equal(missing.markedOn, undefined)
+})

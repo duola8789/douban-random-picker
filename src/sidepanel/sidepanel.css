@@ -77,6 +77,7 @@ h3 {
 /* ---------------------------------------------------------------- 顶栏 */
 
 .bar {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -87,6 +88,52 @@ h3 {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex: 0 0 auto;
+}
+
+/* 上次同步日期放在同步按钮左边，两条信息挨在一起 */
+.sync-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sync-tools button {
+  flex: 0 0 auto;
+}
+
+.sync-note {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 同步中在顶栏下方扫过一条细线：有卡片时也要看得出正在同步 */
+.sync-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.sync-bar[hidden] {
+  display: none;
+}
+
+.sync-bar i {
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: sync-slide 1.4s ease-in-out infinite;
 }
 
 .brand h1 {
@@ -255,6 +302,97 @@ button:disabled:active {
   font-weight: 400;
 }
 
+/* ---------------------------------------------------------------- 同步状态 */
+
+/* 只在同步中或刚完成时出现：有卡片时也要看得见，不占常驻版面 */
+.sync-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.sync-status[hidden] {
+  display: none;
+}
+
+.sync-line[hidden] {
+  display: none;
+}
+
+.sync-line {
+  flex: 1;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.sync-line i {
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: sync-slide 1.4s ease-in-out infinite;
+}
+
+.sync-status.is-done .sync-line i {
+  width: 100%;
+  opacity: 0.3;
+  animation: none;
+}
+
+@keyframes sync-slide {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(280%);
+  }
+}
+
+/* 同步前的范围确认 */
+/* 这句说明要放得下一行，比默认确认框略宽一点 */
+.confirm-card.scope-card {
+  max-width: 344px;
+}
+
+.scope-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.scope-checks .check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+/* 两个按钮收小，靠右放；和上面的勾选项之间留出明显的间距 */
+.confirm-card .scope-actions {
+  margin-top: 26px;
+  justify-content: flex-end;
+}
+
+.confirm-card .scope-actions button {
+  flex: 0 0 auto;
+  padding: 6px 16px;
+  font-size: 13px;
+}
+
+.confirm-card .scope-error {
+  margin: 0 0 12px;
+  color: var(--warn);
+  font-size: 12px;
+}
+
 .actions {
   /* 高度固定：抽之前、抽之后主体区域高度不变，避免布局跳动 */
   flex: 0 0 auto;
@@ -419,6 +557,12 @@ button:disabled:active {
 
 .placeholder strong {
   color: var(--ink);
+  font-weight: 600;
+}
+
+/* 登录指引这类必须看见的短语；盖过 .placeholder strong 的默认颜色 */
+.placeholder .notice-strong {
+  color: var(--warn);
   font-weight: 600;
 }
 

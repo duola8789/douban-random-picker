@@ -23,6 +23,8 @@ export async function readAll() {
 
   const settings = { ...DEFAULT_SETTINGS, ...(raw.settings ?? {}) }
   delete settings.scopes // v0.2 之前的类别开关，已废弃
+  delete settings.poolScope // 1.1 之前的来源范围，已由按需加载取代
+  delete settings.scopePromptDismissed
   const caches = { ...emptyCache(), ...(raw.caches ?? {}) }
 
   return {
