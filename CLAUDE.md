@@ -5,9 +5,11 @@ Chrome MV3 扩展：从个人豆瓣收藏（电影 / 剧集 / 图书）中随机
 
 ## 当前阶段
 
-v1 已实现并在真实 Chrome 中验收，change 已归档为
-`openspec/changes/archive/2026-10-23-v1-random-picker/`（含设计与 13 条技术决策）。
-行为契约在 `openspec/specs/` 下的四个能力里，改行为前先读对应的 spec。
+当前版本 1.1.0。候选池、来源按需加载与账号切换已实现并归档为
+`openspec/changes/archive/2026-11-02-pool-scope/`。
+行为契约在 `openspec/specs/` 下的五个能力里
+（`candidate-list`、`douban-session`、`draw-history`、`interest-sync`、`random-pick`），
+改行为前先读对应的 spec。
 
 ## 文案气质
 
@@ -78,7 +80,8 @@ v1 已实现并在真实 Chrome 中验收，change 已归档为
 - **不申请 `cookies` 权限**，不读、不存、不拼 cookie 值；不模拟登录。
 - **同步循环跑在 content script 里**，service worker 只做编排——
   MV3 的 SW 空闲约 30 秒就休眠，不能承载长任务。
-- 缓存按 `type:status` 维度，24h TTL，打开时 stale-while-revalidate，手动同步绕过 TTL。
+- 缓存按 `type:status` 维度，24h TTL 用于判断新鲜度；打开界面只读缓存、展示上次同步时间，不自动刷新，刷新由用户手动触发（首次使用与按需加载来源时例外）。手动同步绕过 TTL。
+- 候选池 = 勾选集合；来源按需加载，加载即入池，不保留全局「抽取范围」设置。
 - 请求串行，分页间隔 800ms，遇 429 停止并提示。
 - 不做任何写操作（不改标记、不打分、不写短评）。
 - 不要向任何第三方发送 cookie、收藏或用户数据。
@@ -96,5 +99,5 @@ npm run verify   # 语法检查 + 单测 + 静态自检
 
 - `README.md`：项目概览、安装、架构说明。
 - `ROADMAP.md`：v2 候选来源、待验证的豆列接口、兜底路径。
-- `openspec/specs/`：四个能力的行为契约（douban-session / interest-sync / random-pick / draw-history）。
+- `openspec/specs/`：五个能力的行为契约（candidate-list / douban-session / draw-history / interest-sync / random-pick）。
 - `openspec/changes/archive/2026-10-23-v1-random-picker/`：v1 的 proposal / design / tasks 存档。
