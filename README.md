@@ -37,7 +37,7 @@
 ## 开发
 
 ```bash
-npm test        # 68 个用例：纯逻辑单测 + 端到端（假 chrome 环境跑真实的 SW 与 content script）
+npm test        # 88 个用例：纯逻辑单测 + 端到端（假 chrome 环境跑真实的 SW 与 content script）
 npm run check   # 语法检查
 node scripts/verify.mjs   # 静态自检：manifest 引用、权限、import、禁用 API
 npm run verify  # 上面三件事一起跑
