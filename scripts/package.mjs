@@ -33,6 +33,22 @@ for (const entry of INCLUDE) {
 }
 
 /*
+ * 图标：仓库里的 icons/ 是本地构建用的砖红色，和商店版的绿色区分开。
+ * 生产包在 stage 里重新生成一套正式配色，不碰仓库里的本地图标。
+ */
+execFileSync(
+  'node',
+  [
+    path.join(root, 'scripts/make-icons.mjs'),
+    '--out',
+    path.join(stageDir, 'icons'),
+    '--bg',
+    '2f6b4f',
+  ],
+  { stdio: 'inherit' },
+)
+
+/*
  * 换成生产配置：本地开发用 src/lib/config.js（1 分钟冷却、开发面板），
  * 生产包用 src/lib/config.prod.js（10 分钟冷却），然后把源文件删掉。
  */

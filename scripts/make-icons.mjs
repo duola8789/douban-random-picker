@@ -4,21 +4,44 @@
  * 不依赖任何图形库：直接写 PNG（IHDR / IDAT / IEND），
  * 用 4 倍超采样做抗锯齿。
  *
- * 图形：深绿色圆角方块 + 骰子「三点」，在 16px 下也能认出是「随机」。
+ * 图形：圆角方块 + 骰子「三点」，在 16px 下也能认出是「随机」。
  *
- * 用法：node scripts/make-icons.mjs
+ * 本地开发用砖红色，和商店版的深绿色区分开——两个都装的时候，
+ * 工具栏上不用靠名字就能认出哪个是自己加载的。
+ *
+ * 用法：
+ *   node scripts/make-icons.mjs                      生成本地图标（砖红）
+ *   node scripts/make-icons.mjs --out DIR --bg HEX   指定输出目录与底色
  */
 
 import fs from 'node:fs'
 import path from 'node:path'
 import zlib from 'node:zlib'
 
-const OUT_DIR = path.join(process.cwd(), 'icons')
+function argValue(flag, fallback) {
+  const i = process.argv.indexOf(flag)
+  return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback
+}
+
+/** 接受 #rrggbb 或 rrggbb */
+function parseHex(value, fallback) {
+  const hex = String(value ?? '').replace(/^#/, '')
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return fallback
+  return [
+    Number.parseInt(hex.slice(0, 2), 16),
+    Number.parseInt(hex.slice(2, 4), 16),
+    Number.parseInt(hex.slice(4, 6), 16),
+    255,
+  ]
+}
+
+const OUT_DIR = path.resolve(argValue('--out', path.join(process.cwd(), 'icons')))
 const SIZES = [16, 32, 48, 128]
 const SS = 4 // 超采样倍数
 
-const BG = [0x2f, 0x6b, 0x4f, 255] // --accent
-const FG = [0xfb, 0xf8, 0xf1, 255] // --paper
+// 本地构建用砖红色（--warn），生产包由 package.mjs 传 --bg 换回深绿（--accent）
+const BG = parseHex(argValue('--bg', 'a4482c'), [0xa4, 0x48, 0x2c, 255])
+const FG = parseHex(argValue('--fg', 'fbf8f1'), [0xfb, 0xf8, 0xf1, 255])
 
 // ---------------------------------------------------------------- PNG 编码
 
