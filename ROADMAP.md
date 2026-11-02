@@ -44,7 +44,11 @@ change `2026-11-02-pool-scope`（2026-11-02 归档，`openspec/changes/archive/2
 
 ## 待做
 
-没有。下一个版本要做什么，先在这里列清楚再开 change。
+产品功能没有待做。下一个版本要做什么，先在这里列清楚再开 change。
+
+发布与推广还剩一项收尾：
+
+- [ ] awesome chrome extensions 列表 PR 合并（[#121](https://github.com/themeselection/best-chrome-extensions/pull/121)，2026-11-02 已提交）
 
 ---
 
@@ -102,7 +106,7 @@ GET https://m.douban.com/rexxar/api/v2/subject_collection/{id}
    用 `douban export` 生成含评分、短评、私密条目的 JSON，再由扩展导入。
    优点是不受改版影响，缺点是需要手动或定时导出。
 
-二者 v1 均未实现。
+二者仍未实现。
 
 ## 关于 `Marvae/douban-cli`
 
@@ -120,6 +124,16 @@ MIT，Node 22 CLI。本项目**没有引入它的任何代码**，只借用了�
 需要划清的一点：douban-cli 靠读取本机浏览器的 cookie 库拿登录态，本项目**刻意不这么做**——
 扩展有页面上下文，走 content script 同站请求即可，不需要也不应该碰 cookie 值。
 
+## 发布与推广
+
+| 事项 | 状态 | 链接 |
+|---|---|---|
+| Chrome Web Store | 已上架 | [商店页](https://chromewebstore.google.com/detail/bmaafglngmalgmpglcejlkelemibpdoe) |
+| 阮一峰周刊投稿 | 已完成（2026-11-02） | [#13000](https://github.com/ruanyf/weekly/issues/13000) |
+| awesome chrome extensions 列表 | 已提交（2026-11-02），待合并 | [#121](https://github.com/themeselection/best-chrome-extensions/pull/121) |
+
+合并后条目出现在该仓库 README 的「🚀 Automation and Productivity Tools」第 3 行。
+
 ## 发布前清单
 
 - [x] 选定本项目自己的 LICENSE（MIT）
@@ -133,5 +147,5 @@ MIT，Node 22 CLI。本项目**没有引入它的任何代码**，只借用了�
       覆盖配置（10 分钟冷却、dailySkipLimit 1），并删除标记为 `dev-only`
       的界面与样式，生产包里不含「重置全部数据」
 - [x] 在真实 Chrome 里验收，并截图（1280×800 或 640×400）
-- [ ] 商店后台填写「数据使用」表单
-- [ ] 评估风险：豆瓣接口为非公开接口，公开发布会放大被限流与被改的概率
+- [x] 商店后台填写「数据使用」表单（随上架完成）
+- [x] 评估风险：豆瓣接口为非公开接口，公开发布会放大被限流与被改的概率（结论见 `docs/compliance.md`）
